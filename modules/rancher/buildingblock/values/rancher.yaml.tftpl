@@ -1,0 +1,19 @@
+# Rancher Helm values (ADR-008). bootstrapPassword is set via set_sensitive.
+hostname: ${jsonencode(hostname)}
+replicas: ${replicas}
+antiAffinity: ${replicas > 1 ? "required" : "preferred"}
+ingress:
+%{ if ingress_class_name != null ~}
+  ingressClassName: ${jsonencode(ingress_class_name)}
+%{ endif ~}
+  tls:
+    source: ${jsonencode(tls_source)}
+%{ if tls_source == "letsEncrypt" ~}
+letsEncrypt:
+  email: ${jsonencode(letsencrypt_email)}
+  environment: production
+%{ if ingress_class_name != null ~}
+  ingress:
+    class: ${jsonencode(ingress_class_name)}
+%{ endif ~}
+%{ endif ~}

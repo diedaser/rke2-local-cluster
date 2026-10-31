@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned OpenTofu version
+        id: tofu
+        run: echo "version=$(cat .opentofu-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: ${{ steps.tofu.outputs.version }}
+          tofu_wrapper: false
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.64.0
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('.tflint.hcl') }}
+
+      # fmt, init -backend=false, validate, tflint, tofu test (mocked providers)
+      - name: validate-all
+        run: ./scripts/validate-all.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # tflint plugin download rate limit
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: trivy IaC scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: trivy secret scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          exit-code: "1"

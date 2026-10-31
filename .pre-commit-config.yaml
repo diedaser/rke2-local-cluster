@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-yaml
+        exclude: '\.tftpl$'
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.109.2
+    hooks:
+      - id: terraform_fmt
+        args: [--hook-config=--tf-path=tofu]
+      - id: terraform_validate
+        args: [--hook-config=--tf-path=tofu, --tf-init-args=-backend=false]
+      - id: terraform_tflint
+        args: [--args=--config=__GIT_WORKING_DIR__/.tflint.hcl]
+      - id: terraform_docs
+        files: ^modules/(rke2-cluster|rancher)/buildingblock/
+        args: [--args=--config=.terraform-docs.yml]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

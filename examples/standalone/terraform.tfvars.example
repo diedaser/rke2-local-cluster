@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (git-ignored) and adjust.
+# Export credentials and the passphrase in your shell instead of writing them here:
+#   source <your-openrc.sh>          # OS_* variables
+#   export TF_VAR_state_encryption_passphrase=...
+
+openstack_project_id  = "0123456789abcdef0123456789abcdef"
+cluster_name          = "dev-mgmt"
+server_count          = "1"
+server_flavor         = "m1.xlarge"
+image_name            = "ubuntu-24.04"
+external_network_name = "public"
+api_allowed_cidrs     = ["198.51.100.10/32"]
+rancher_hostname      = "rancher.dev.example.com"

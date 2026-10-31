@@ -1,0 +1,23 @@
+#cloud-config
+# Rendered by cloudinit.tf. All node configuration happens here (ADR-002).
+# File contents are base64 encoded so certificates are written byte-identical.
+write_files:
+%{ for f in files ~}
+  - path: ${f.path}
+    owner: root:root
+    permissions: "${f.permissions}"
+    encoding: b64
+    content: ${base64encode(f.content)}
+%{ endfor ~}
+
+runcmd:
+%{ if cis_enabled ~}
+  # CIS profile: kernel parameters and etcd user must exist before RKE2 starts (ADR-011).
+  - [sysctl, --system]
+%{ if role == "server" ~}
+  - [sh, -c, "id etcd >/dev/null 2>&1 || useradd -r -c 'etcd user' -s /sbin/nologin -M -U etcd"]
+%{ endif ~}
+%{ endif ~}
+  - [sh, -c, "curl --fail --silent --show-error --location --retry 20 --retry-delay 10 --retry-all-errors ${install_script_url} --output /root/install-rke2.sh"]
+  - [sh, -c, "INSTALL_RKE2_VERSION='${rke2_version}' INSTALL_RKE2_TYPE='${role}' sh /root/install-rke2.sh"]
+  - [systemctl, enable, --now, rke2-${role}.service]

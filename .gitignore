@@ -1,0 +1,28 @@
+# OpenTofu
+.terraform/
+.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+backend_override.tf
+*_override.tf
+
+# Variables with real values (examples stay tracked)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Credentials
+kubeconfig*
+!**/kubeconfig.yaml.tftpl
+*.pem
+*.key
+meshstack_deploy_key*
+.env
+
+# Local tooling
+.claude/
+CLAUDE.md
+CLAUDE.local.md

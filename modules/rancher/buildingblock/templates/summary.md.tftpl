@@ -1,0 +1,25 @@
+# Rancher Manager
+
+Rancher is installed and bootstrapped: ${rancher_url}
+
+| | |
+|---|---|
+| Rancher version | `${rancher_version}` |
+| cert-manager version | `${cert_manager_version}` |
+| TLS source | `${tls_source}` |
+| Replicas | ${replicas} |
+
+## Admin access
+
+The admin credentials (username `admin`, password, API token) are stored in
+OpenStack Barbican, not in meshStack:
+
+- Secret name: `${admin_secret_name}`
+- Secret reference: `${admin_secret_ref}`
+
+Fetch them with `openstack secret get --payload ${admin_secret_ref}`.
+
+%{ if tls_source == "rancher" ~}
+The UI uses a certificate from a Rancher-generated CA. Browsers will warn until
+you trust that CA or switch `tls_source` to `letsEncrypt` or `secret`.
+%{ endif ~}

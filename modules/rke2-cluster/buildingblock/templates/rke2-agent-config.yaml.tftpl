@@ -1,0 +1,7 @@
+# /etc/rancher/rke2/config.yaml (agent). Values are JSON encoded, which is valid YAML.
+server: ${jsonencode(registration_url)}
+token: ${jsonencode(token)}
+%{ if cis_enabled ~}
+profile: cis
+%{ endif ~}
+node-label: ${jsonencode(node_labels)}

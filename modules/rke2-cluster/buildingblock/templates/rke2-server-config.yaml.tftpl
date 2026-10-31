@@ -1,0 +1,21 @@
+# /etc/rancher/rke2/config.yaml (server). Values are JSON encoded, which is valid YAML.
+%{ if first_server ~}
+# First server: no registration address, so it initialises the embedded etcd cluster.
+# (RKE2 has no separate cluster-init flag; see ADR-006.)
+token: ${jsonencode(token)}
+%{ else ~}
+server: ${jsonencode(registration_url)}
+token: ${jsonencode(token)}
+%{ endif ~}
+tls-san: ${jsonencode(tls_sans)}
+write-kubeconfig-mode: "0600"
+cni: canal
+ingress-controller: ${jsonencode(ingress_controller)}
+%{ if cis_enabled ~}
+profile: cis
+pod-security-admission-config-file: ${jsonencode(psa_config_path)}
+%{ endif ~}
+secrets-encryption: true
+etcd-snapshot-schedule-cron: ${jsonencode(etcd_snapshot_schedule_cron)}
+etcd-snapshot-retention: ${etcd_snapshot_retention}
+node-label: ${jsonencode(node_labels)}
