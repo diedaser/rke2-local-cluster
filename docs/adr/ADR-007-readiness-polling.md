@@ -12,11 +12,11 @@ Use the `http` data source with a `retry` block and a `postcondition` on `status
 
 | Data source | URL | Auth / TLS | Retry |
 |---|---|---|---|
-| `rke2-cluster` `data.http.api_readyz` | `<api_server_url>/readyz` | admin client cert, verified against `server-ca` | 90 x 10 s |
-| `rancher` `data.http.api_readyz` | `<api_server_url>/readyz` | credentials from the Barbican kubeconfig | 30 x 10 s |
+| `rke2-cluster` `data.http.api_readyz` | `<api_server_url>/readyz` | admin client cert, verified against `server-ca` | 120 x 10 s (cloud-init, RKE2, NLB target registration) |
+| `rancher` `data.http.api_readyz` | `<api_server_url>/readyz` | credentials from the Secrets Manager kubeconfig | 30 x 10 s |
 | `rancher` `data.http.rancher_ping` | `https://<rancher_hostname>/ping`, expects `pong` | `insecure = true` | 60 x 10 s |
 
-Downstream resources `depends_on` these data sources: the Barbican kubeconfig secret, cert-manager, the `cattle-system` namespace and `rancher2_bootstrap`. `time_sleep` is used only where no endpoint exists. There is currently no such case.
+Downstream resources `depends_on` these data sources: the kubeconfig secret version, cert-manager, the `cattle-system` namespace and `rancher2_bootstrap`. `time_sleep` is used only where no endpoint exists. There is currently no such case.
 
 ## Consequences
 

@@ -1,15 +1,15 @@
 # Input validation rules. Mocked providers: never touches real infrastructure.
 
-mock_provider "openstack" {
-  mock_data "openstack_identity_auth_scope_v3" {
+mock_provider "aws" {
+  mock_data "aws_caller_identity" {
     defaults = {
-      project_id = "0123456789abcdef0123456789abcdef"
+      account_id = "123456789012"
     }
   }
-  mock_data "openstack_keymanager_secret_v1" {
+  mock_data "aws_secretsmanager_secret_version" {
     defaults = {
       # Test-only kubeconfig with dummy base64 data, no real credentials.
-      payload = <<-EOT
+      secret_string = <<-EOT
         apiVersion: v1
         kind: Config
         clusters:
@@ -31,9 +31,10 @@ mock_provider "openstack" {
       EOT
     }
   }
-  mock_resource "openstack_keymanager_secret_v1" {
+  mock_resource "aws_secretsmanager_secret" {
     defaults = {
-      secret_ref = "https://barbican.example.com/v1/secrets/11111111-1111-1111-1111-111111111111"
+      arn    = "arn:aws:secretsmanager:eu-central-1:123456789012:secret:rancher-9a8b7c6d-rancher-admin-AbCdEf"
+      region = "eu-central-1"
     }
   }
 }
@@ -60,7 +61,7 @@ variables {
   workspace_identifier        = "platform"
   project_identifier          = "rancher-mgmt"
   building_block_uuid         = "9a8b7c6d-1234-4abc-9def-0123456789ab"
-  openstack_project_id        = "0123456789abcdef0123456789abcdef"
+  aws_account_id              = "123456789012"
   state_encryption_passphrase = "test-passphrase-not-secret"
   kubeconfig_secret_name      = "mgmt-3f2b8c1e-kubeconfig"
   api_server_url              = "https://203.0.113.50:6443"
@@ -160,10 +161,26 @@ run "rejects_foreign_secret_name" {
   expect_failures = [var.kubeconfig_secret_name]
 }
 
-run "rejects_foreign_project_credentials" {
+run "rejects_foreign_account_credentials" {
   command = plan
   variables {
-    openstack_project_id = "ffffffffffffffffffffffffffffffff"
+    aws_account_id = "999999999999"
   }
   expect_failures = [data.http.api_readyz]
+}
+
+run "rejects_bad_account_id" {
+  command = plan
+  variables {
+    aws_account_id = "12345"
+  }
+  expect_failures = [var.aws_account_id]
+}
+
+run "rejects_bad_kms_key" {
+  command = plan
+  variables {
+    kms_key_arn = "alias/my-key"
+  }
+  expect_failures = [var.kms_key_arn]
 }

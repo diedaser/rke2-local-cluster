@@ -8,7 +8,7 @@ the definition changes (CONTRIBUTING.md rule 13).
 
 | Setting | Value |
 |---|---|
-| Type | Tenant building block on the OpenStack platform |
+| Type | Tenant building block on the AWS platform |
 | Implementation | OpenTofu, path `modules/rke2-cluster/buildingblock`, ref = release tag |
 | State | meshStack built-in HTTP backend (no `backend` block in code) |
 | Dependencies | none |
@@ -17,15 +17,15 @@ the definition changes (CONTRIBUTING.md rule 13).
 
 | Input | Source | Provided as | Encrypted |
 |---|---|---|---|
-| `OS_AUTH_URL`, `OS_REGION_NAME`, `OS_AUTH_TYPE` | Static | Environment | no |
-| `OS_APPLICATION_CREDENTIAL_ID`, `OS_APPLICATION_CREDENTIAL_SECRET` | Static | Environment | yes |
+| `AWS_REGION` | Static | Environment | no |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Static | Environment | yes |
 | `TF_VAR_state_encryption_passphrase` | Static | Environment | yes |
-| `openstack_project_id` | Platform Tenant ID | Variable | no |
+| `aws_account_id` | Platform Tenant ID (the tenant's AWS account ID) | Variable | no |
 | `workspace_identifier` | Workspace Identifier | Variable | no |
 | `project_identifier` | Project Identifier | Variable | no |
 | `building_block_uuid` | Building Block UUID | Variable | no |
-| `cluster_name`, `server_count`, `agent_count`, `server_flavor`, `agent_flavor`, `api_allowed_cidrs` | User Input | Variable | no |
-| `image_name`, `external_network_name`, `rke2_version`, `hardening_profile`, and the optional platform settings in the GUI guide | Static | Variable | no |
+| `cluster_name`, `server_count`, `agent_count`, `server_instance_type`, `agent_instance_type`, `api_allowed_cidrs` | User Input | Variable | no |
+| `ami_id`, `rke2_version`, `hardening_profile`, and the optional platform settings in the GUI guide | Static | Variable | no |
 
 ## Outputs
 
@@ -34,7 +34,7 @@ None of them is secret (ADR-012).
 | Output | Assignment type |
 |---|---|
 | `kubeconfig_secret_name` | None (consumed by `rancher`) |
-| `kubeconfig_secret_ref` | None |
+| `kubeconfig_secret_arn` | None |
 | `api_server_url` | Resource URL |
-| `lb_ip` | None |
+| `lb_dns_name` | None |
 | `summary` | Summary |

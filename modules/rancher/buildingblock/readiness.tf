@@ -16,8 +16,8 @@ data "http" "api_readyz" {
 
   lifecycle {
     precondition {
-      condition     = data.openstack_identity_auth_scope_v3.current.project_id == var.openstack_project_id
-      error_message = "The OpenStack credentials are scoped to project ${data.openstack_identity_auth_scope_v3.current.project_id}, but the meshStack tenant is ${var.openstack_project_id} (see ADR-013)."
+      condition     = data.aws_caller_identity.current.account_id == var.aws_account_id
+      error_message = "The AWS credentials belong to account ${data.aws_caller_identity.current.account_id}, but the meshStack tenant is ${var.aws_account_id} (see ADR-013)."
     }
     postcondition {
       condition     = self.status_code == 200

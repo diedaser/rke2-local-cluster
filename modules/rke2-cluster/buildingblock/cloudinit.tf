@@ -1,5 +1,5 @@
 # Renders cloud-init per node role. All nodes of a role share one rendering;
-# node names come from Nova.
+# node names are the EC2 private DNS hostnames (ip-a-b-c-d).
 
 locals {
   rke2_tls_dir = "/var/lib/rancher/rke2/server/tls"
@@ -133,15 +133,25 @@ locals {
   }
 }
 
+# gzip + base64: EC2 limits user data to 16 KiB, and the first server carries
+# the whole CA set. cloud-init decompresses it transparently.
 data "cloudinit_config" "node" {
   for_each = local.node_roles
 
-  gzip          = false
-  base64_encode = false
+  gzip          = true
+  base64_encode = true
 
   part {
     content_type = "text/cloud-config"
     filename     = "rke2-${each.key}.yaml"
     content      = local.cloud_config[each.key]
+  }
+
+  lifecycle {
+    postcondition {
+      # 16384 bytes raw = 21848 base64 characters.
+      condition     = length(self.rendered) <= 21848
+      error_message = "cloud-init user data for ${each.key} exceeds the EC2 limit of 16 KiB."
+    }
   }
 }

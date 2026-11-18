@@ -1,8 +1,9 @@
 # `rancher` building block
 
 Installs cert-manager and Rancher on the cluster created by `rke2-cluster`,
-bootstraps the admin account, and stores the admin credentials in Barbican.
-Cluster access comes from the kubeconfig the parent stored in Barbican.
+bootstraps the admin account, and stores the admin credentials in AWS Secrets
+Manager. Cluster access comes from the kubeconfig the parent stored in Secrets
+Manager.
 
 Executed by the meshStack building block runner. See the repository
 [README](../../../README.md), [CONTRIBUTING.md](../../../CONTRIBUTING.md) and the
@@ -18,23 +19,23 @@ terraform-docs -c .terraform-docs.yml modules/rancher/buildingblock
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.73.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 3.3.0 |
 | <a name="requirement_http"></a> [http](#requirement\_http) | ~> 3.6.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 3.3.0 |
-| <a name="requirement_openstack"></a> [openstack](#requirement\_openstack) | ~> 3.4.0 |
 | <a name="requirement_rancher2"></a> [rancher2](#requirement\_rancher2) | ~> 15.1.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.9.0 |
 
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.73.0 |
 | <a name="provider_helm"></a> [helm](#provider\_helm) | 3.3.0 |
-| <a name="provider_http"></a> [http](#provider\_http) | 3.6.2 |
+| <a name="provider_http"></a> [http](#provider\_http) | 3.6.3 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | 3.3.0 |
-| <a name="provider_openstack"></a> [openstack](#provider\_openstack) | 3.4.0 |
 | <a name="provider_rancher2.admin"></a> [rancher2.admin](#provider\_rancher2.admin) | 15.1.2 |
 | <a name="provider_rancher2.bootstrap"></a> [rancher2.bootstrap](#provider\_rancher2.bootstrap) | 15.1.2 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.9.1 |
@@ -42,41 +43,43 @@ terraform-docs -c .terraform-docs.yml modules/rancher/buildingblock
 ## Modules
 
 | Name | Source | Version |
-| ---- | ------ | ------- |
+|------|--------|---------|
 | <a name="module_naming"></a> [naming](#module\_naming) | ../../_shared/naming | n/a |
 
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
+|------|------|
+| [aws_secretsmanager_secret.admin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
+| [aws_secretsmanager_secret_version.admin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [helm_release.cert_manager](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [helm_release.rancher](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace_v1.cattle_system](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace_v1) | resource |
 | [kubernetes_secret_v1.tls_rancher_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret_v1) | resource |
-| [openstack_keymanager_secret_v1.admin](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/keymanager_secret_v1) | resource |
 | [rancher2_bootstrap.admin](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/bootstrap) | resource |
 | [rancher2_setting.telemetry_opt](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/setting) | resource |
 | [random_password.admin](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.bootstrap](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_secretsmanager_secret_version.kubeconfig](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secret_version) | data source |
 | [http_http.api_readyz](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 | [http_http.rancher_ping](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
-| [openstack_identity_auth_scope_v3.current](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/data-sources/identity_auth_scope_v3) | data source |
-| [openstack_keymanager_secret_v1.kubeconfig](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/data-sources/keymanager_secret_v1) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_api_server_url"></a> [api\_server\_url](#input\_api\_server\_url) | Kubernetes API URL (source: Parent Building Block Output `api_server_url`). Polled for readiness before any Kubernetes resource. | `string` | n/a | yes |
-| <a name="input_building_block_uuid"></a> [building\_block\_uuid](#input\_building\_block\_uuid) | meshStack building block UUID (source: Building Block UUID). Makes the Barbican secret name unique. | `string` | n/a | yes |
-| <a name="input_kubeconfig_secret_name"></a> [kubeconfig\_secret\_name](#input\_kubeconfig\_secret\_name) | Name of the Barbican secret holding the cluster admin kubeconfig (source: Parent Building Block Output `kubeconfig_secret_name`). | `string` | n/a | yes |
-| <a name="input_openstack_project_id"></a> [openstack\_project\_id](#input\_openstack\_project\_id) | OpenStack project ID of the meshStack tenant (source: Platform Tenant ID). Must match the project of the runner credentials. | `string` | n/a | yes |
+| <a name="input_aws_account_id"></a> [aws\_account\_id](#input\_aws\_account\_id) | AWS account ID of the meshStack tenant (source: Platform Tenant ID). Must match the account of the runner credentials. | `string` | n/a | yes |
+| <a name="input_building_block_uuid"></a> [building\_block\_uuid](#input\_building\_block\_uuid) | meshStack building block UUID (source: Building Block UUID). Makes the admin secret name unique. | `string` | n/a | yes |
+| <a name="input_kubeconfig_secret_name"></a> [kubeconfig\_secret\_name](#input\_kubeconfig\_secret\_name) | Name of the AWS Secrets Manager secret holding the cluster admin kubeconfig (source: Parent Building Block Output `kubeconfig_secret_name`). | `string` | n/a | yes |
 | <a name="input_project_identifier"></a> [project\_identifier](#input\_project\_identifier) | meshStack project identifier (source: Project Identifier). | `string` | n/a | yes |
 | <a name="input_rancher_hostname"></a> [rancher\_hostname](#input\_rancher\_hostname) | FQDN of the Rancher UI. A DNS record pointing at the cluster LB IP must exist before the run. | `string` | n/a | yes |
 | <a name="input_state_encryption_passphrase"></a> [state\_encryption\_passphrase](#input\_state\_encryption\_passphrase) | Passphrase for OpenTofu state encryption (ADR-004). Provided as environment variable TF\_VAR\_state\_encryption\_passphrase. | `string` | n/a | yes |
 | <a name="input_workspace_identifier"></a> [workspace\_identifier](#input\_workspace\_identifier) | meshStack workspace identifier (source: Workspace Identifier). | `string` | n/a | yes |
 | <a name="input_cert_manager_version"></a> [cert\_manager\_version](#input\_cert\_manager\_version) | cert-manager Helm chart version. | `string` | `"v1.21.2"` | no |
 | <a name="input_ingress_class_name"></a> [ingress\_class\_name](#input\_ingress\_class\_name) | Ingress class for Rancher. Null uses the cluster default class (RKE2's ingress controller). | `string` | `null` | no |
+| <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Optional customer managed KMS key ARN for the admin secret. Null uses the AWS managed key aws/secretsmanager. Reading the kubeconfig secret needs kms:Decrypt on the key used by rke2-cluster. | `string` | `null` | no |
 | <a name="input_letsencrypt_email"></a> [letsencrypt\_email](#input\_letsencrypt\_email) | Contact e-mail for Let's Encrypt. Required when tls\_source = letsEncrypt. | `string` | `null` | no |
 | <a name="input_rancher_chart_repository"></a> [rancher\_chart\_repository](#input\_rancher\_chart\_repository) | Helm repository of the Rancher chart: rancher-stable, or rancher-prime if licensed. | `string` | `"https://releases.rancher.com/server-charts/stable"` | no |
 | <a name="input_rancher_version"></a> [rancher\_version](#input\_rancher\_version) | Rancher Helm chart version. Must support the cluster's RKE2 version (Rancher support matrix). | `string` | `"2.15.2"` | no |
@@ -88,9 +91,9 @@ terraform-docs -c .terraform-docs.yml modules/rancher/buildingblock
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
-| <a name="output_admin_secret_name"></a> [admin\_secret\_name](#output\_admin\_secret\_name) | Name of the Barbican secret holding the Rancher admin credentials. |
-| <a name="output_admin_secret_ref"></a> [admin\_secret\_ref](#output\_admin\_secret\_ref) | Barbican reference (URL) of the secret holding the Rancher admin URL, username, password and API token (JSON). |
+|------|-------------|
+| <a name="output_admin_secret_arn"></a> [admin\_secret\_arn](#output\_admin\_secret\_arn) | ARN of the Rancher admin credentials secret. |
+| <a name="output_admin_secret_name"></a> [admin\_secret\_name](#output\_admin\_secret\_name) | Name of the AWS Secrets Manager secret holding the Rancher admin URL, username, password and API token (JSON). |
 | <a name="output_rancher_url"></a> [rancher\_url](#output\_rancher\_url) | URL of the Rancher UI. |
 | <a name="output_summary"></a> [summary](#output\_summary) | Markdown summary shown in meshStack after apply. |
 <!-- END_TF_DOCS -->

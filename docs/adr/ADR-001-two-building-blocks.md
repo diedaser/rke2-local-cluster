@@ -10,10 +10,10 @@ The Helm, Kubernetes and rancher2 providers need a working API endpoint and cred
 
 Split the work into two meshStack building blocks:
 
-- `rke2-cluster` (parent): network, load balancer, VMs, PKI, kubeconfig in Barbican.
+- `rke2-cluster` (parent): VPC, NLBs, EC2 instances, PKI, kubeconfig in AWS Secrets Manager.
 - `rancher` (child, depends on `rke2-cluster`): cert-manager, Rancher, admin bootstrap.
 
-The child receives non-secret references from the parent through the meshStack input source "Parent Building Block Output" (`kubeconfig_secret_name`, `api_server_url`) and resolves the credential from Barbican ([ADR-012](ADR-012-secrets-in-barbican.md)).
+The child receives non-secret references from the parent through the meshStack input source "Parent Building Block Output" (`kubeconfig_secret_name`, `api_server_url`) and resolves the credential from Secrets Manager ([ADR-012](ADR-012-secrets-in-secrets-manager.md)).
 
 ## Consequences
 

@@ -1,11 +1,16 @@
-# OpenStack credentials come from the environment (OS_*), only to read and
-# write Barbican secrets; the default openstack provider configuration reads
-# them, so it has no block here. Kubernetes and Helm use the admin kubeconfig
-# read from Barbican (secrets.tf). No provider reads files from the runner.
+# AWS credentials and region come from the environment (AWS_ACCESS_KEY_ID,
+# AWS_SECRET_ACCESS_KEY, AWS_REGION), only to read and write Secrets Manager
+# secrets. Kubernetes and Helm use the admin kubeconfig read from Secrets
+# Manager (secrets.tf). No provider reads files from the runner.
 
-data "openstack_identity_auth_scope_v3" "current" {
-  name = "current"
+provider "aws" {
+  default_tags {
+    tags = local.labels
+  }
 }
+
+# Checked against the meshStack tenant (aws_account_id), see readiness.tf.
+data "aws_caller_identity" "current" {}
 
 provider "kubernetes" {
   host                   = local.kube_host

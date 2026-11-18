@@ -1,10 +1,12 @@
-# Credentials come exclusively from the environment set by the meshStack
-# definition (OS_AUTH_URL, OS_REGION_NAME, OS_AUTH_TYPE,
-# OS_APPLICATION_CREDENTIAL_ID, OS_APPLICATION_CREDENTIAL_SECRET). No provider
-# block is needed: the default configuration reads them.
-
-# The project the credentials are scoped to. Checked against the meshStack
-# tenant (openstack_project_id) before anything is created, see network.tf.
-data "openstack_identity_auth_scope_v3" "current" {
-  name = "current"
+# Credentials and region come exclusively from the environment set by the
+# meshStack definition (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION).
+# Every resource carries the meshStack labels as tags (ADR-010).
+provider "aws" {
+  default_tags {
+    tags = local.labels
+  }
 }
+
+# The account the credentials belong to. Checked against the meshStack tenant
+# (aws_account_id) before anything is created, see network.tf (ADR-013).
+data "aws_caller_identity" "current" {}

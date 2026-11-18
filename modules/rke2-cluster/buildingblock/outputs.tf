@@ -4,23 +4,23 @@
 # when outputs change.
 
 output "kubeconfig_secret_name" {
-  description = "Name of the Barbican secret holding the admin kubeconfig. Consumed by the `rancher` building block."
-  value       = openstack_keymanager_secret_v1.kubeconfig.name
+  description = "Name of the AWS Secrets Manager secret holding the admin kubeconfig. Consumed by the `rancher` building block."
+  value       = aws_secretsmanager_secret.kubeconfig.name
 }
 
-output "kubeconfig_secret_ref" {
-  description = "Barbican reference (URL) of the admin kubeconfig secret."
-  value       = openstack_keymanager_secret_v1.kubeconfig.secret_ref
+output "kubeconfig_secret_arn" {
+  description = "ARN of the admin kubeconfig secret (informational)."
+  value       = aws_secretsmanager_secret.kubeconfig.arn
 }
 
 output "api_server_url" {
-  description = "Kubernetes API URL through the load balancer."
+  description = "Kubernetes API URL through the client-facing load balancer."
   value       = local.api_server_url
 }
 
-output "lb_ip" {
-  description = "Client-facing IP of the load balancer (floating IP, or VIP if no floating IP is assigned). Point the Rancher DNS record here."
-  value       = local.lb_public_ip
+output "lb_dns_name" {
+  description = "DNS name of the client-facing NLB (public, or internal if public_load_balancer = false). Point the Rancher DNS record (CNAME or Route 53 alias) here."
+  value       = local.client_lb_dns
 }
 
 output "summary" {
@@ -28,15 +28,17 @@ output "summary" {
   value = templatefile("${path.module}/templates/summary.md.tftpl", {
     cluster_name           = var.cluster_name
     api_server_url         = local.api_server_url
-    lb_ip                  = local.lb_public_ip
-    lb_vip                 = local.lb_vip_address
+    lb_dns_name            = local.client_lb_dns
+    internal_lb_dns_name   = local.internal_lb_dns
+    public_load_balancer   = var.public_load_balancer
+    region                 = aws_secretsmanager_secret.kubeconfig.region
     rke2_version           = var.rke2_version
     server_count           = local.server_count
     agent_count            = var.agent_count
     hardening_profile      = var.hardening_profile
     ingress_controller     = var.ingress_controller
-    kubeconfig_secret_name = openstack_keymanager_secret_v1.kubeconfig.name
-    kubeconfig_secret_ref  = openstack_keymanager_secret_v1.kubeconfig.secret_ref
+    kubeconfig_secret_name = aws_secretsmanager_secret.kubeconfig.name
+    kubeconfig_secret_arn  = aws_secretsmanager_secret.kubeconfig.arn
     admin_cert_expiry      = tls_locally_signed_cert.admin.validity_end_time
   })
 }

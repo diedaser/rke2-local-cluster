@@ -9,31 +9,31 @@ module "naming" {
 }
 
 locals {
-  prefix = module.naming.prefix
-  labels = module.naming.labels
-  tags   = module.naming.tags
+  prefix   = module.naming.prefix
+  short_id = module.naming.short_id
+  labels   = module.naming.labels
 
-  server_count      = tonumber(var.server_count)
-  join_server_count = local.server_count - 1
-  agent_flavor      = coalesce(var.agent_flavor, var.server_flavor)
+  server_count        = tonumber(var.server_count)
+  join_server_count   = local.server_count - 1
+  agent_instance_type = coalesce(var.agent_instance_type, var.server_instance_type)
 
-  # Address the nodes use to register (private VIP) and the address clients
-  # use to reach the API (floating IP if assigned).
-  lb_vip_address = openstack_lb_loadbalancer_v2.this.vip_address
-  lb_public_ip   = var.assign_floating_ip ? openstack_networking_floatingip_v2.lb[0].address : local.lb_vip_address
+  # Nodes register through the internal NLB. Clients use the public NLB if
+  # there is one, otherwise the internal NLB as well (ADR-006).
+  internal_lb_dns = aws_lb.internal.dns_name
+  client_lb_dns   = var.public_load_balancer ? aws_lb.public[0].dns_name : local.internal_lb_dns
 
-  registration_url = "https://${local.lb_vip_address}:9345"
-  api_server_url   = "https://${local.lb_public_ip}:6443"
+  registration_url = "https://${local.internal_lb_dns}:9345"
+  api_server_url   = "https://${local.client_lb_dns}:6443"
 
   tls_sans = distinct(compact(concat(
-    [local.lb_vip_address, local.lb_public_ip],
+    [local.internal_lb_dns, local.client_lb_dns],
     var.api_extra_sans,
   )))
 
-  # Octavia listener allow lists. The subnet CIDR is always included so nodes
-  # can reach the VIP; it also keeps the lists non-empty (empty = allow all).
-  api_allowed_cidrs     = distinct(concat(var.api_allowed_cidrs, var.runner_egress_cidrs, [var.subnet_cidr]))
-  ingress_allowed_cidrs = distinct(concat(var.ingress_allowed_cidrs, var.runner_egress_cidrs, [var.subnet_cidr]))
+  # Client allow lists. The runner always needs 6443 and 443 (CONTRIBUTING.md,
+  # network requirements).
+  api_client_cidrs     = distinct(concat(var.api_allowed_cidrs, var.runner_egress_cidrs))
+  ingress_client_cidrs = distinct(concat(var.ingress_allowed_cidrs, var.runner_egress_cidrs))
 
   cis_enabled = var.hardening_profile == "cis"
 

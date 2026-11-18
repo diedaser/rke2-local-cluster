@@ -1,105 +1,181 @@
-# One Octavia LB serves the registration address (9345), the API (6443) and
-# ingress (80/443) on a single VIP (ADR-006).
+# Network Load Balancers (ADR-006).
+#
+# internal: always present, in the private subnets. Serves the registration
+#   address (9345) and the API (6443) to the nodes. Without a public NLB it
+#   also serves clients on 6443/80/443.
+# public:   optional (public_load_balancer), in the public subnets. Serves
+#   clients on 6443/80/443. 9345 is never public.
+#
+# Target groups do not preserve client IPs: RKE2 nodes reach the NLB that
+# targets themselves (registration, hairpin to the Rancher hostname), which
+# fails with client IP preservation.
 
-resource "openstack_lb_loadbalancer_v2" "this" {
-  name                  = "${local.prefix}-lb"
-  vip_subnet_id         = openstack_networking_subnet_v2.this.id
-  loadbalancer_provider = var.lb_provider
-  tags                  = local.tags
+locals {
+  load_balancers = toset(concat(["internal"], var.public_load_balancer ? ["public"] : []))
 
-  depends_on = [openstack_networking_router_interface_v2.this]
+  client_lb = var.public_load_balancer ? "public" : "internal"
+
+  server_ids = concat(module.server_init.ids, module.server_join.ids)
+  agent_ids  = module.agents.ids
+  node_count = local.server_count + var.agent_count
+
+  # Allow lists per listener. The VPC CIDR keeps the internal listeners
+  # reachable for the nodes.
+  listeners = merge(
+    {
+      "int-api" = { lb = "internal", port = 6443, servers_only = true, cidrs = distinct(concat([var.vpc_cidr], var.public_load_balancer ? [] : local.api_client_cidrs)) }
+      "int-sup" = { lb = "internal", port = 9345, servers_only = true, cidrs = [var.vpc_cidr] }
+    },
+    {
+      for name, port in { api = 6443, http = 80, https = 443 } :
+      "${substr(local.client_lb, 0, 3)}-${name}" => {
+        lb           = local.client_lb
+        port         = port
+        servers_only = name == "api"
+        cidrs = distinct(concat(
+          var.public_load_balancer ? [] : [var.vpc_cidr],
+          name == "api" ? local.api_client_cidrs : local.ingress_client_cidrs,
+        ))
+      } if !(local.client_lb == "internal" && name == "api")
+    },
+  )
+
+  # One attachment per listener and node. Keys use indexes so they are known
+  # at plan time.
+  attachments = merge([
+    for l, cfg in local.listeners : {
+      for i in range(cfg.servers_only ? local.server_count : local.node_count) :
+      "${l}-${i}" => { listener = l, index = i, port = cfg.port }
+    }
+  ]...)
+
+  lb_ingress_rules = merge([
+    for l, cfg in local.listeners : {
+      for c in cfg.cidrs : "${l}-${c}" => { lb = cfg.lb, port = cfg.port, cidr = c }
+    }
+  ]...)
 }
 
-resource "openstack_networking_floatingip_v2" "lb" {
-  count = var.assign_floating_ip ? 1 : 0
+resource "aws_security_group" "lb" {
+  for_each = local.load_balancers
 
-  pool        = var.external_network_name
-  description = "${local.prefix} API and ingress"
-  tags        = local.tags
+  name        = "${local.prefix}-lb-${each.key}"
+  description = "${each.key} NLB of ${var.cluster_name}"
+  vpc_id      = aws_vpc.this.id
+  tags        = { Name = "${local.prefix}-lb-${each.key}" }
 }
 
-resource "openstack_networking_floatingip_associate_v2" "lb" {
-  count = var.assign_floating_ip ? 1 : 0
+# Public ingress is the purpose of the public NLB; ingress_allowed_cidrs
+# defaults to 0.0.0.0/0 for the Rancher UI.
+#trivy:ignore:AVD-AWS-0107
+resource "aws_vpc_security_group_ingress_rule" "lb_clients" {
+  for_each = local.lb_ingress_rules
 
-  floating_ip = openstack_networking_floatingip_v2.lb[0].address
-  port_id     = openstack_lb_loadbalancer_v2.this.vip_port_id
+  security_group_id = aws_security_group.lb[each.value.lb].id
+  description       = "Port ${each.value.port} from ${each.value.cidr}"
+  cidr_ipv4         = each.value.cidr
+  ip_protocol       = "tcp"
+  from_port         = each.value.port
+  to_port           = each.value.port
+}
+
+# Pods reach the public hostname (Rancher URL) through NAT. Keep that path
+# open even when the client allow lists are restricted.
+resource "aws_vpc_security_group_ingress_rule" "lb_public_from_nat" {
+  for_each = var.public_load_balancer ? { api = 6443, http = 80, https = 443 } : {}
+
+  security_group_id = aws_security_group.lb["public"].id
+  description       = "Port ${each.value} from the cluster NAT gateway"
+  cidr_ipv4         = "${aws_eip.nat.public_ip}/32"
+  ip_protocol       = "tcp"
+  from_port         = each.value
+  to_port           = each.value
+}
+
+resource "aws_vpc_security_group_egress_rule" "lb_to_vpc" {
+  for_each = local.load_balancers
+
+  security_group_id = aws_security_group.lb[each.key].id
+  description       = "Forwarding and health checks to the nodes"
+  cidr_ipv4         = var.vpc_cidr
+  ip_protocol       = "-1"
+}
+
+resource "aws_lb" "internal" {
+  name                             = "rke2-${local.short_id}-internal"
+  load_balancer_type               = "network"
+  internal                         = true
+  subnets                          = local.private_subnet_ids
+  security_groups                  = [aws_security_group.lb["internal"].id]
+  enable_cross_zone_load_balancing = true
+
+  tags = { Name = "${local.prefix}-internal" }
+}
+
+#trivy:ignore:AVD-AWS-0053
+resource "aws_lb" "public" {
+  count = var.public_load_balancer ? 1 : 0
+
+  name                             = "rke2-${local.short_id}-public"
+  load_balancer_type               = "network"
+  internal                         = false
+  subnets                          = local.public_subnet_ids
+  security_groups                  = [aws_security_group.lb["public"].id]
+  enable_cross_zone_load_balancing = true
+
+  tags = { Name = "${local.prefix}-public" }
+
+  depends_on = [aws_route.public_internet]
 }
 
 locals {
-  server_ips = concat(module.server_init.ips, module.server_join.ips)
-  agent_ips  = module.agents.ips
-
-  listeners = {
-    api = {
-      port          = 6443
-      allowed_cidrs = local.api_allowed_cidrs
-      members       = local.server_ips
-    }
-    supervisor = {
-      port          = 9345
-      allowed_cidrs = [var.subnet_cidr]
-      members       = local.server_ips
-    }
-    http = {
-      port          = 80
-      allowed_cidrs = local.ingress_allowed_cidrs
-      members       = concat(local.server_ips, local.agent_ips)
-    }
-    https = {
-      port          = 443
-      allowed_cidrs = local.ingress_allowed_cidrs
-      members       = concat(local.server_ips, local.agent_ips)
-    }
-  }
+  lb_arns = merge(
+    { internal = aws_lb.internal.arn },
+    var.public_load_balancer ? { public = aws_lb.public[0].arn } : {},
+  )
 }
 
-resource "openstack_lb_listener_v2" "this" {
+resource "aws_lb_target_group" "this" {
   for_each = local.listeners
 
-  name            = "${local.prefix}-${each.key}"
-  loadbalancer_id = openstack_lb_loadbalancer_v2.this.id
-  protocol        = "TCP"
-  protocol_port   = each.value.port
-  allowed_cidrs   = each.value.allowed_cidrs
-  tags            = local.tags
+  name                 = "rke2-${local.short_id}-${each.key}"
+  vpc_id               = aws_vpc.this.id
+  protocol             = "TCP"
+  port                 = each.value.port
+  target_type          = "instance"
+  preserve_client_ip   = false
+  deregistration_delay = 30
+
+  health_check {
+    protocol            = "TCP"
+    interval            = 10
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = { Name = "${local.prefix}-${each.key}" }
+}
+
+resource "aws_lb_listener" "this" {
+  for_each = local.listeners
+
+  load_balancer_arn = local.lb_arns[each.value.lb]
+  protocol          = "TCP"
+  port              = each.value.port
 
   # Long-lived watch connections (kubectl, Rancher agents) must not be cut.
-  timeout_client_data = 3600000
-  timeout_member_data = 3600000
-}
+  tcp_idle_timeout_seconds = 3600
 
-resource "openstack_lb_pool_v2" "this" {
-  for_each = local.listeners
-
-  name        = "${local.prefix}-${each.key}"
-  listener_id = openstack_lb_listener_v2.this[each.key].id
-  protocol    = "TCP"
-  lb_method   = "ROUND_ROBIN"
-  tags        = local.tags
-}
-
-resource "openstack_lb_monitor_v2" "this" {
-  for_each = local.listeners
-
-  name        = "${local.prefix}-${each.key}"
-  pool_id     = openstack_lb_pool_v2.this[each.key].id
-  type        = "TCP"
-  delay       = 10
-  timeout     = 5
-  max_retries = 3
-}
-
-resource "openstack_lb_members_v2" "this" {
-  for_each = local.listeners
-
-  pool_id = openstack_lb_pool_v2.this[each.key].id
-
-  dynamic "member" {
-    for_each = each.value.members
-    content {
-      address       = member.value
-      protocol_port = each.value.port
-      subnet_id     = openstack_networking_subnet_v2.this.id
-    }
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.this[each.key].arn
   }
+}
+
+resource "aws_lb_target_group_attachment" "this" {
+  for_each = local.attachments
+
+  target_group_arn = aws_lb_target_group.this[each.value.listener].arn
+  target_id        = concat(local.server_ids, local.agent_ids)[each.value.index]
+  port             = each.value.port
 }

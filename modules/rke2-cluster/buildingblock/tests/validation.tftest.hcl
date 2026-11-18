@@ -1,9 +1,29 @@
 # Input validation rules. Mocked providers: never touches real infrastructure.
 
-mock_provider "openstack" {
-  mock_data "openstack_identity_auth_scope_v3" {
+mock_provider "aws" {
+  mock_data "aws_caller_identity" {
     defaults = {
-      project_id = "0123456789abcdef0123456789abcdef"
+      account_id = "123456789012"
+    }
+  }
+  mock_data "aws_availability_zones" {
+    defaults = {
+      names = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
+    }
+  }
+  mock_resource "aws_eip" {
+    defaults = {
+      public_ip = "203.0.113.60"
+    }
+  }
+  mock_resource "aws_lb" {
+    defaults = {
+      arn = "arn:aws:elasticloadbalancing:eu-central-1:123456789012:loadbalancer/net/rke2/0123456789abcdef"
+    }
+  }
+  mock_resource "aws_lb_target_group" {
+    defaults = {
+      arn = "arn:aws:elasticloadbalancing:eu-central-1:123456789012:targetgroup/rke2/0123456789abcdef"
     }
   }
 }
@@ -14,12 +34,10 @@ variables {
   workspace_identifier        = "platform"
   project_identifier          = "rancher-mgmt"
   building_block_uuid         = "3f2b8c1e-1234-4abc-9def-0123456789ab"
-  openstack_project_id        = "0123456789abcdef0123456789abcdef"
+  aws_account_id              = "123456789012"
   state_encryption_passphrase = "test-passphrase-not-secret"
   cluster_name                = "mgmt"
-  server_flavor               = "m1.xlarge"
-  image_name                  = "ubuntu-24.04"
-  external_network_name       = "public"
+  ami_id                      = "ami-0123456789abcdef0"
   api_allowed_cidrs           = ["10.0.0.0/8"]
 }
 
@@ -114,12 +132,50 @@ run "rejects_short_passphrase" {
   expect_failures = [var.state_encryption_passphrase]
 }
 
-run "rejects_subnet_overlapping_pod_cidr" {
+run "rejects_vpc_overlapping_pod_cidr" {
   command = plan
   variables {
-    subnet_cidr = "10.42.1.0/24"
+    vpc_cidr = "10.42.1.0/24"
   }
-  expect_failures = [var.subnet_cidr]
+  expect_failures = [var.vpc_cidr]
+}
+
+run "rejects_vpc_containing_service_cidr" {
+  command = plan
+  variables {
+    vpc_cidr = "10.0.0.0/8"
+  }
+  expect_failures = [var.vpc_cidr]
+}
+
+run "rejects_vpc_too_small" {
+  command = plan
+  variables {
+    vpc_cidr = "192.168.0.0/26"
+  }
+  expect_failures = [var.vpc_cidr]
+}
+
+run "rejects_invalid_vpc_cidr" {
+  command = plan
+  variables {
+    vpc_cidr = "not-a-cidr"
+  }
+  expect_failures = [var.vpc_cidr]
+}
+
+run "accepts_vpc_adjacent_to_pod_cidr" {
+  command = plan
+  variables {
+    vpc_cidr = "10.44.0.0/16"
+  }
+}
+
+run "accepts_vpc_below_pod_cidr" {
+  command = plan
+  variables {
+    vpc_cidr = "10.41.0.0/16"
+  }
 }
 
 run "rejects_admin_cert_validity_out_of_range" {
@@ -130,12 +186,52 @@ run "rejects_admin_cert_validity_out_of_range" {
   expect_failures = [var.admin_cert_validity_hours]
 }
 
-run "rejects_bad_project_id" {
+run "rejects_bad_account_id" {
   command = plan
   variables {
-    openstack_project_id = "not-a-project"
+    aws_account_id = "not-an-account"
   }
-  expect_failures = [var.openstack_project_id]
+  expect_failures = [var.aws_account_id]
+}
+
+run "rejects_bad_ami_id" {
+  command = plan
+  variables {
+    ami_id = "ubuntu-24.04"
+  }
+  expect_failures = [var.ami_id]
+}
+
+run "rejects_bad_instance_type" {
+  command = plan
+  variables {
+    server_instance_type = "m1.xlarge large"
+  }
+  expect_failures = [var.server_instance_type]
+}
+
+run "rejects_too_many_azs" {
+  command = plan
+  variables {
+    availability_zones = ["a", "b", "c", "d", "e"]
+  }
+  expect_failures = [var.availability_zones]
+}
+
+run "rejects_low_iops" {
+  command = plan
+  variables {
+    root_volume_iops = 100
+  }
+  expect_failures = [var.root_volume_iops]
+}
+
+run "rejects_bad_kms_key" {
+  command = plan
+  variables {
+    kms_key_arn = "alias/my-key"
+  }
+  expect_failures = [var.kms_key_arn]
 }
 
 run "rejects_unknown_ingress_controller" {

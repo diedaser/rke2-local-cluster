@@ -4,7 +4,7 @@
 
 ## Context
 
-State contains CA private keys, the join token, the kubeconfig, the Rancher admin password and token, and, in the backplane, the application credential secret.
+State contains CA private keys, the join token, the kubeconfig, the Rancher admin password and token, and, in the backplane, the IAM secret access key.
 
 ## Decision
 

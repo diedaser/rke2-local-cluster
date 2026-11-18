@@ -1,21 +1,20 @@
-# Cluster access comes from Barbican, written by the parent building block.
-# The Rancher admin credentials go back to Barbican; only their reference is
-# output (ADR-012). Changes here require an ADR update (CONTRIBUTING.md rule 6).
+# Cluster access comes from AWS Secrets Manager, written by the parent
+# building block. The Rancher admin credentials go back to Secrets Manager;
+# only their name and ARN are output (ADR-012). Changes here require an ADR update (CONTRIBUTING.md rule 6).
 
-data "openstack_keymanager_secret_v1" "kubeconfig" {
-  name        = var.kubeconfig_secret_name
-  secret_type = "opaque"
+data "aws_secretsmanager_secret_version" "kubeconfig" {
+  secret_id = var.kubeconfig_secret_name
 
   lifecycle {
     postcondition {
-      condition     = can(yamldecode(self.payload).clusters[0].cluster.server)
-      error_message = "Barbican secret ${var.kubeconfig_secret_name} does not contain a kubeconfig."
+      condition     = can(yamldecode(self.secret_string).clusters[0].cluster.server)
+      error_message = "Secret ${var.kubeconfig_secret_name} does not contain a kubeconfig."
     }
   }
 }
 
 locals {
-  kubeconfig = yamldecode(data.openstack_keymanager_secret_v1.kubeconfig.payload)
+  kubeconfig = yamldecode(data.aws_secretsmanager_secret_version.kubeconfig.secret_string)
 
   kube_host                   = local.kubeconfig.clusters[0].cluster.server
   kube_cluster_ca_certificate = base64decode(local.kubeconfig.clusters[0].cluster["certificate-authority-data"])
@@ -39,19 +38,22 @@ resource "random_password" "admin" {
   override_special = "!#%*+-.:=?@_"
 }
 
-resource "openstack_keymanager_secret_v1" "admin" {
-  name                 = "${local.prefix}-rancher-admin"
-  secret_type          = "opaque"
-  payload_content_type = "text/plain"
-  metadata             = local.labels
-  payload = jsonencode({
+resource "aws_secretsmanager_secret" "admin" {
+  name        = "${local.prefix}-rancher-admin"
+  description = "Rancher admin credentials for ${local.rancher_url} (meshStack building block ${var.building_block_uuid})."
+  kms_key_id  = var.kms_key_arn
+
+  # Worthless once Rancher is gone; immediate deletion allows re-creation
+  # under the same name.
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "admin" {
+  secret_id = aws_secretsmanager_secret.admin.id
+  secret_string = jsonencode({
     url      = local.rancher_url
     username = "admin"
     password = rancher2_bootstrap.admin.password
     token    = rancher2_bootstrap.admin.token
   })
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }
