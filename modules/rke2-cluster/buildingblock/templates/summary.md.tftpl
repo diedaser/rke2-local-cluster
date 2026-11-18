@@ -5,7 +5,7 @@ The cluster is up and its Kubernetes API answered `/readyz`.
 | | |
 |---|---|
 | Kubernetes API | `${api_server_url}` |
-| Load balancer IP | `${lb_ip}` (VIP `${lb_vip}`) |
+| Load balancer | `${lb_dns_name}`%{ if public_load_balancer } (internal: `${internal_lb_dns_name}`)%{ endif } |
 | RKE2 version | `${rke2_version}` |
 | Nodes | ${server_count} server(s), ${agent_count} agent(s) |
 | Hardening profile | `${hardening_profile}` |
@@ -14,15 +14,16 @@ The cluster is up and its Kubernetes API answered `/readyz`.
 
 ## Access
 
-The admin kubeconfig is stored in OpenStack Barbican, not in meshStack:
+The admin kubeconfig is stored in AWS Secrets Manager (region `${region}`), not in meshStack:
 
 - Secret name: `${kubeconfig_secret_name}`
-- Secret reference: `${kubeconfig_secret_ref}`
+- Secret ARN: `${kubeconfig_secret_arn}`
 
-Platform team members with access to the OpenStack project can fetch it with
+Platform team members with access to the AWS account can fetch it with
 `scripts/fetch-kubeconfig.sh`.
 
 ## Next steps
 
-1. Create a DNS A record for your Rancher hostname pointing at `${lb_ip}`.
+1. Create a DNS record for your Rancher hostname pointing at `${lb_dns_name}`
+   (CNAME, or a Route 53 alias record).
 2. Add the **Rancher Manager** building block to this tenant.

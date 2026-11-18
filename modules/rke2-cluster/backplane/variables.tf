@@ -1,73 +1,42 @@
-variable "project_id" {
-  description = "OpenStack project ID the clusters are created in (the meshStack tenant's project)."
+variable "account_id" {
+  description = "AWS account ID the clusters are created in (the meshStack tenant's account)."
   type        = string
 
   validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.project_id))
-    error_message = "project_id must be a 32 character hex OpenStack project ID."
-  }
-}
-
-variable "auth_url" {
-  description = "Keystone URL to hand over to the meshStack definition (OS_AUTH_URL)."
-  type        = string
-
-  validation {
-    condition     = startswith(var.auth_url, "https://")
-    error_message = "auth_url must be an https URL."
+    condition     = can(regex("^[0-9]{12}$", var.account_id))
+    error_message = "account_id must be a 12 digit AWS account ID."
   }
 }
 
 variable "region" {
-  description = "OpenStack region to hand over to the meshStack definition (OS_REGION_NAME)."
+  description = "AWS region the clusters are created in. Handed over to the meshStack definition (AWS_REGION); the runner policy is restricted to it."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z]{2}(-[a-z]+)+-[0-9]$", var.region))
+    error_message = "region must be an AWS region such as eu-central-1."
+  }
 }
 
-variable "application_credential_name" {
-  description = "Name of the application credential used by the meshStack runner."
+variable "iam_user_name" {
+  description = "Name of the IAM user used by the meshStack runner."
   type        = string
   default     = "meshstack-rke2-runner"
 }
 
-variable "roles" {
-  description = "Roles the application credential carries. Depending on the cloud's policies, Octavia may need `load-balancer_member` and Barbican `creator`."
-  type        = list(string)
-  default     = ["member"]
+variable "kms_key_arn" {
+  description = "Optional customer managed KMS key ARN the building blocks use (kms_key_arn input). Grants the runner use of that key."
+  type        = string
+  default     = null
 
   validation {
-    condition     = length(var.roles) > 0
-    error_message = "roles must not be empty."
+    condition     = var.kms_key_arn == null || can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]+$", var.kms_key_arn))
+    error_message = "kms_key_arn must be a KMS key ARN."
   }
 }
 
-variable "expires_at" {
-  description = "Optional expiry of the application credential (RFC3339). Rotate before it expires."
-  type        = string
-  default     = null
-}
-
-variable "manage_quotas" {
-  description = "Set project quotas (requires admin rights)."
-  type        = bool
-  default     = false
-}
-
-variable "quota" {
-  description = "Project quotas used when manage_quotas = true. Defaults fit one 3-server cluster plus headroom for a rolling replacement."
-  type = object({
-    instances     = optional(number, 10)
-    cores         = optional(number, 40)
-    ram_mb        = optional(number, 163840)
-    volumes       = optional(number, 20)
-    volume_gb     = optional(number, 2000)
-    floating_ips  = optional(number, 4)
-    loadbalancers = optional(number, 2)
-  })
-  default = {}
-}
-
 variable "state_encryption_passphrase" {
-  description = "Passphrase for OpenTofu state encryption. The state holds the application credential secret. Set TF_VAR_state_encryption_passphrase."
+  description = "Passphrase for OpenTofu state encryption. The state holds the secret access key. Set TF_VAR_state_encryption_passphrase."
   type        = string
   sensitive   = true
 

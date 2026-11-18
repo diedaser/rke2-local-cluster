@@ -1,65 +1,81 @@
 # Server nodes: control plane + etcd (ADR-006).
 #
-# The first server initialises the cluster; the others join through the LB
-# VIP on 9345. Server instances ignore image/user_data changes (see
-# _shared/node-pool-openstack) so OpenTofu never silently replaces an etcd
-# member. RKE2 upgrades on servers follow docs/operations.md.
+# The first server initialises the cluster; the others join through the
+# internal NLB on 9345. Server instances ignore AMI/user data changes (see
+# _shared/node-pool-aws) so OpenTofu never silently replaces an etcd member.
+# RKE2 upgrades on servers follow docs/operations.md.
 #
 # CAUTION (CONTRIBUTING.md rule 8): any plan destroying
-# module.server_init.openstack_compute_instance_v2.pinned[0] or
-# module.server_join.openstack_compute_instance_v2.pinned[*] removes etcd
-# members. Call it out in review.
+# module.server_init.aws_instance.pinned[0] or
+# module.server_join.aws_instance.pinned[*] removes etcd members. Call it out
+# in review.
 
-resource "openstack_compute_servergroup_v2" "servers" {
+# Spread: every server on distinct hardware.
+resource "aws_placement_group" "servers" {
   name     = "${local.prefix}-servers"
-  policies = ["soft-anti-affinity"]
+  strategy = "spread"
+}
+
+locals {
+  server_pool = {
+    instance_type       = var.server_instance_type
+    ami_id              = var.ami_id
+    subnet_ids          = local.private_subnet_ids
+    security_group_ids  = [aws_security_group.nodes.id, aws_security_group.servers.id]
+    placement_group     = aws_placement_group.servers.name
+    key_name            = var.ssh_key_name
+    root_volume_size_gb = var.root_volume_size_gb
+    root_volume_iops    = var.root_volume_iops
+    kms_key_arn         = var.kms_key_arn
+    tags                = merge(local.labels, { "rke2-role" = "server" })
+  }
 }
 
 module "server_init" {
-  source = "../../_shared/node-pool-openstack"
+  source = "../../_shared/node-pool-aws"
 
-  name_prefix          = "${local.prefix}-server"
-  node_count           = 1
-  flavor_name          = var.server_flavor
-  image_name           = var.image_name
-  user_data            = [data.cloudinit_config.node["server_init"].rendered]
-  network_id           = openstack_networking_network_v2.this.id
-  security_group_names = [openstack_networking_secgroup_v2.nodes.name, openstack_networking_secgroup_v2.servers.name]
-  server_group_id      = openstack_compute_servergroup_v2.servers.id
-  key_pair             = var.ssh_key_pair
-  availability_zones   = var.availability_zones
-  boot_volume_size_gb  = var.boot_volume_size_gb
-  boot_volume_type     = var.boot_volume_type
-  metadata             = merge(local.labels, { "rke2-role" = "server" })
-  tags                 = local.tags
-  replace_on_change    = false
+  name_prefix         = "${local.prefix}-server"
+  node_count          = 1
+  user_data_base64    = [data.cloudinit_config.node["server_init"].rendered]
+  instance_type       = local.server_pool.instance_type
+  ami_id              = local.server_pool.ami_id
+  subnet_ids          = local.server_pool.subnet_ids
+  security_group_ids  = local.server_pool.security_group_ids
+  placement_group     = local.server_pool.placement_group
+  key_name            = local.server_pool.key_name
+  root_volume_size_gb = local.server_pool.root_volume_size_gb
+  root_volume_iops    = local.server_pool.root_volume_iops
+  kms_key_arn         = local.server_pool.kms_key_arn
+  tags                = local.server_pool.tags
+  replace_on_change   = false
 
   depends_on = [
-    openstack_networking_router_interface_v2.this,
-    openstack_networking_secgroup_rule_v2.nodes,
-    openstack_networking_secgroup_rule_v2.etcd,
+    aws_route.private_nat,
+    aws_route_table_association.private,
+    aws_vpc_security_group_ingress_rule.nodes_self,
+    aws_vpc_security_group_ingress_rule.etcd,
+    aws_vpc_security_group_egress_rule.nodes_all,
   ]
 }
 
 module "server_join" {
-  source = "../../_shared/node-pool-openstack"
+  source = "../../_shared/node-pool-aws"
 
-  name_prefix          = "${local.prefix}-server"
-  index_offset         = 1
-  node_count           = local.join_server_count
-  flavor_name          = var.server_flavor
-  image_name           = var.image_name
-  user_data            = [data.cloudinit_config.node["server_join"].rendered]
-  network_id           = openstack_networking_network_v2.this.id
-  security_group_names = [openstack_networking_secgroup_v2.nodes.name, openstack_networking_secgroup_v2.servers.name]
-  server_group_id      = openstack_compute_servergroup_v2.servers.id
-  key_pair             = var.ssh_key_pair
-  availability_zones   = length(var.availability_zones) > 0 ? concat(slice(var.availability_zones, 1, length(var.availability_zones)), [var.availability_zones[0]]) : []
-  boot_volume_size_gb  = var.boot_volume_size_gb
-  boot_volume_type     = var.boot_volume_type
-  metadata             = merge(local.labels, { "rke2-role" = "server" })
-  tags                 = local.tags
-  replace_on_change    = false
+  name_prefix         = "${local.prefix}-server"
+  index_offset        = 1
+  node_count          = local.join_server_count
+  user_data_base64    = [data.cloudinit_config.node["server_join"].rendered]
+  instance_type       = local.server_pool.instance_type
+  ami_id              = local.server_pool.ami_id
+  subnet_ids          = local.server_pool.subnet_ids
+  security_group_ids  = local.server_pool.security_group_ids
+  placement_group     = local.server_pool.placement_group
+  key_name            = local.server_pool.key_name
+  root_volume_size_gb = local.server_pool.root_volume_size_gb
+  root_volume_iops    = local.server_pool.root_volume_iops
+  kms_key_arn         = local.server_pool.kms_key_arn
+  tags                = local.server_pool.tags
+  replace_on_change   = false
 
   depends_on = [module.server_init]
 }

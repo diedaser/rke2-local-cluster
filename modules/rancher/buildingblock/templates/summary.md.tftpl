@@ -12,12 +12,13 @@ Rancher is installed and bootstrapped: ${rancher_url}
 ## Admin access
 
 The admin credentials (username `admin`, password, API token) are stored in
-OpenStack Barbican, not in meshStack:
+AWS Secrets Manager (region `${region}`), not in meshStack:
 
 - Secret name: `${admin_secret_name}`
-- Secret reference: `${admin_secret_ref}`
+- Secret ARN: `${admin_secret_arn}`
 
-Fetch them with `openstack secret get --payload ${admin_secret_ref}`.
+Fetch them with
+`aws secretsmanager get-secret-value --region ${region} --secret-id ${admin_secret_name} --query SecretString --output text`.
 
 %{ if tls_source == "rancher" ~}
 The UI uses a certificate from a Rancher-generated CA. Browsers will warn until

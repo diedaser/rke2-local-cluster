@@ -26,7 +26,7 @@ variable "project_identifier" {
 }
 
 variable "building_block_uuid" {
-  description = "meshStack building block UUID. Used to make names unique within an OpenStack project."
+  description = "meshStack building block UUID. Used to make names unique within an AWS account and region."
   type        = string
 }
 
@@ -55,11 +55,6 @@ output "short_id" {
 }
 
 output "labels" {
-  description = "Labels as a map, for resources supporting key/value metadata (Nova metadata, Kubernetes labels)."
+  description = "Labels as a map: AWS tags (provider default_tags) and Kubernetes node labels."
   value       = local.labels
-}
-
-output "tags" {
-  description = "Labels rendered as `key=value` strings, for OpenStack resources supporting only string tags."
-  value       = sort([for k, v in local.labels : "${k}=${v}"])
 }

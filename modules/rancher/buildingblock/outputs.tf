@@ -7,14 +7,14 @@ output "rancher_url" {
   value       = local.rancher_url
 }
 
-output "admin_secret_ref" {
-  description = "Barbican reference (URL) of the secret holding the Rancher admin URL, username, password and API token (JSON)."
-  value       = openstack_keymanager_secret_v1.admin.secret_ref
+output "admin_secret_name" {
+  description = "Name of the AWS Secrets Manager secret holding the Rancher admin URL, username, password and API token (JSON)."
+  value       = aws_secretsmanager_secret.admin.name
 }
 
-output "admin_secret_name" {
-  description = "Name of the Barbican secret holding the Rancher admin credentials."
-  value       = openstack_keymanager_secret_v1.admin.name
+output "admin_secret_arn" {
+  description = "ARN of the Rancher admin credentials secret."
+  value       = aws_secretsmanager_secret.admin.arn
 }
 
 output "summary" {
@@ -25,7 +25,8 @@ output "summary" {
     cert_manager_version = var.cert_manager_version
     tls_source           = var.tls_source
     replicas             = var.replicas
-    admin_secret_name    = openstack_keymanager_secret_v1.admin.name
-    admin_secret_ref     = openstack_keymanager_secret_v1.admin.secret_ref
+    admin_secret_name    = aws_secretsmanager_secret.admin.name
+    admin_secret_arn     = aws_secretsmanager_secret.admin.arn
+    region               = aws_secretsmanager_secret.admin.region
   })
 }

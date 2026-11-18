@@ -4,9 +4,11 @@ Day-2 procedures for the `rke2-cluster` and `rancher` building blocks. Run them 
 
 Resource addresses (used with `tofu apply -replace`):
 
-- First server: `module.server_init.openstack_compute_instance_v2.pinned[0]`
-- Joining servers: `module.server_join.openstack_compute_instance_v2.pinned[i]` (`i = 0` is the second server)
-- Agents: `module.agents.openstack_compute_instance_v2.rolling[i]`
+- First server: `module.server_init.aws_instance.pinned[0]`
+- Joining servers: `module.server_join.aws_instance.pinned[i]` (`i = 0` is the second server)
+- Agents: `module.agents.aws_instance.rolling[i]`
+
+Node access without SSH: AWS Systems Manager Session Manager is not set up (no instance profile). Use break-glass SSH (`ssh_key_name`, `ssh_allowed_cidrs`) from a bastion in the VPC, or the EC2 serial console.
 
 ## RKE2 upgrades
 
@@ -18,13 +20,13 @@ Bump `rke2_version` and run the building block. Agents use the "rolling" node po
 
 ### Servers
 
-Server instances ignore `user_data` and image changes ([ADR-006](adr/ADR-006-fixed-registration-address.md)). Bumping `rke2_version` therefore changes only the cloud-init of servers created in the future. It never replaces an etcd member. Upgrade the existing servers in place, one at a time:
+Server instances ignore user data and AMI changes ([ADR-006](adr/ADR-006-fixed-registration-address.md)). Bumping `rke2_version` therefore changes only the cloud-init of servers created in the future. It never replaces an etcd member. Upgrade the existing servers in place, one at a time:
 
 1. Bump `rke2_version` in the definition and run the building block. Confirm the plan replaces no server.
 2. For each server, one after another:
    ```bash
    kubectl drain <node> --ignore-daemonsets --delete-emptydir-data
-   # on the node (console or break-glass SSH):
+   # on the node (serial console or break-glass SSH):
    curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION=<new version> INSTALL_RKE2_TYPE=server sh -
    systemctl restart rke2-server
    kubectl uncordon <node>
@@ -44,9 +46,9 @@ Alternative: install the [system-upgrade-controller](https://docs.rke2.io/upgrad
    RKE2 removes the etcd member when its node is deleted. Check with `etcdctl member list` from another server.
 2. Replace the instance:
    ```bash
-   tofu apply -replace='module.server_join.openstack_compute_instance_v2.pinned[<i>]'
+   tofu apply -replace='module.server_join.aws_instance.pinned[<i>]'
    ```
-   The new server joins through the VIP with the current cloud-init.
+   The new server joins through the internal NLB with the current cloud-init and AMI.
 
 In meshStack this requires a platform-team run with the replace option, or a local run against the instance's state (never in parallel with meshStack, see [ADR-005](adr/ADR-005-meshstack-state-backend.md)).
 
@@ -57,7 +59,7 @@ In meshStack this requires a platform-team run with the replace option, or a loc
 If server 0 is lost but the other servers still have etcd quorum:
 
 1. Delete its node (`kubectl delete node <server-0>`) so its etcd member is removed.
-2. Do **not** recreate it with OpenTofu. Run the cluster on the remaining servers until the next maintenance window. The LB health monitors remove the dead member automatically.
+2. Do **not** recreate it with OpenTofu. Run the cluster on the remaining servers until the next maintenance window. The NLB health checks take the dead target out of rotation automatically.
 3. To get back to full size, restore into a fresh first server ([disaster recovery](#disaster-recovery)), then re-join the others.
 
 If quorum is lost, follow [disaster recovery](#disaster-recovery).
@@ -69,7 +71,7 @@ Servers take local snapshots as configured by `etcd_snapshot_schedule_cron` (def
 - On-demand snapshot: `rke2 etcd-snapshot save --name pre-change`
 - List snapshots: `rke2 etcd-snapshot list`
 
-S3 targets are not wired into the module yet. Until then, configure them by hand (`etcd-s3*` keys in `/etc/rancher/rke2/config.yaml` on each server), or copy snapshots off-host. Local snapshots die with the boot volumes.
+S3 targets are not wired into the module yet. Until then, configure them by hand (`etcd-s3*` keys in `/etc/rancher/rke2/config.yaml` on each server), or copy snapshots off-host. Local snapshots die with the root volumes (`delete_on_termination = true`). An S3 target needs an instance profile with `s3:PutObject`, which the module does not create yet.
 
 ## Disaster recovery
 
@@ -81,13 +83,13 @@ Restore an etcd snapshot on the first server with `cluster-reset`:
    rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/<snapshot>
    systemctl start rke2-server
    ```
-3. On every other server: `rm -rf /var/lib/rancher/rke2/server/db`, then `systemctl start rke2-server`. They re-join through the VIP.
+3. On every other server: `rm -rf /var/lib/rancher/rke2/server/db`, then `systemctl start rke2-server`. They re-join through the internal NLB.
 
-If server 0 itself is gone, create a replacement with the same CA files (`tofu apply -replace` on `module.server_init...pinned[0]`), stop RKE2 there before it serves workloads, and restore as above. The CA set is in state, so restored certificates and the kubeconfig stay valid.
+If server 0 itself is gone, create a replacement with the same CA files (`tofu apply -replace='module.server_init.aws_instance.pinned[0]'`), stop RKE2 there before it serves workloads, and restore as above. The CA set is in state, so restored certificates and the kubeconfig stay valid.
 
 ## Admin certificate renewal
 
-The admin client certificate is valid for `admin_cert_validity_hours` (default one year). Any run within the last 30 days (`early_renewal_hours = min(720, validity / 4)`) issues a new certificate. The kubeconfig changes, and Barbican replaces the secret create-before-destroy, which gives it a new `kubeconfig_secret_ref`.
+The admin client certificate is valid for `admin_cert_validity_hours` (default one year). Any run within the last 30 days (`early_renewal_hours = min(720, validity / 4)`) issues a new certificate. The kubeconfig changes and is written as a new version of the same Secrets Manager secret; name and ARN stay the same.
 
 You do not need to re-run `rancher` for this. It looks up the kubeconfig by `kubeconfig_secret_name` on every run. Schedule an `rke2-cluster` run (or drift detection plus approval) at least once a month so the certificate never expires.
 
@@ -107,6 +109,20 @@ This is ADR-003-sensitive: changes to `pki.tf` require an update to [ADR-003](ad
 3. Upgrade cert-manager separately if needed, one component per PR.
 4. Run with "Version upgrade" approval and review the Helm diff.
 
+## NAT gateway
+
+There is one NAT gateway, in the first AZ. If that AZ fails, nodes lose internet egress (image pulls, Helm repos), but in-cluster traffic, the NLBs and running workloads keep working. For zone-redundant egress, add a NAT gateway per AZ (not implemented).
+
+## Runner access key rotation
+
+The backplane IAM user's access key is long-lived. Rotate it at least every 90 days:
+
+1. `tofu apply -replace=aws_iam_access_key.meshstack_runner` in `modules/rke2-cluster/backplane`.
+2. Create a new draft of **both** definitions with the new `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and release them.
+3. Upgrade existing building block instances to the new definition versions.
+
+Between step 1 and step 3 the old key no longer exists, so runs fail. Do it in a window without scheduled runs (drift detection included).
+
 ## State encryption passphrase
 
 Never change `TF_VAR_state_encryption_passphrase` on a definition. Existing state then becomes unreadable ([ADR-004](adr/ADR-004-state-encryption.md)). To rotate it:
@@ -117,6 +133,6 @@ Never change `TF_VAR_state_encryption_passphrase` on a definition. Existing stat
 
 ## Deleting
 
-1. Delete the `rancher` building block first. This uninstalls the Helm releases and deletes the admin secret in Barbican. Rancher's uninstall leaves CRDs and some namespaces behind; this is irrelevant if the cluster is deleted next.
-2. Delete the `rke2-cluster` building block. This destroys servers, agents, boot volumes, the LB, the floating IP, network, router, security groups, the server group and the kubeconfig secret in Barbican.
-3. Check that nothing tagged `meshstack-building-block=<uuid>` remains in the project.
+1. Delete the `rancher` building block first. This uninstalls the Helm releases and deletes the admin secret in Secrets Manager (immediately, no recovery window). Rancher's uninstall leaves CRDs and some namespaces behind; this is irrelevant if the cluster is deleted next.
+2. Delete the `rke2-cluster` building block. This destroys servers, agents, root volumes, both NLBs, the NAT gateway and its EIP, the VPC with subnets, route tables and security groups, the placement group and the kubeconfig secret in Secrets Manager.
+3. Check that nothing tagged `meshstack-building-block=<uuid>` remains in the account and region (Resource Groups → Tag Editor).

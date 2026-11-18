@@ -20,8 +20,8 @@ Without SSH ([ADR-002](ADR-002-no-ssh-no-local-exec.md)), OpenTofu cannot read `
 ## Consequences
 
 - CA private keys and the join token live in state, so state encryption is mandatory ([ADR-004](ADR-004-state-encryption.md)).
-- CA keys, the token and the PSA config are also in the first server's Nova user data, which anyone with read access to the project can see.
+- CA keys, the token and the PSA config are also in the first server's EC2 user data, which anyone with `ec2:DescribeInstanceAttribute` in the account can read. Restrict that permission to the platform team.
 - CA rotation is a manual procedure ([operations](../operations.md#ca-rotation)).
-- Re-applying within the last 30 days of validity (or the last quarter of a shorter validity) renews the admin certificate and replaces the Barbican kubeconfig secret.
+- Re-applying within the last 30 days of validity (or the last quarter of a shorter validity) renews the admin certificate and writes a new version of the kubeconfig secret in Secrets Manager.
 - The token hash must match what RKE2 serves on `/cacerts`. If `server-ca.crt` on the first server is changed, nodes can no longer join ([troubleshooting](../troubleshooting.md#joining-nodes-token-ca-hash-does-not-match)).
 - Changes to `pki.tf` require an update to this ADR (CONTRIBUTING.md rule 6).

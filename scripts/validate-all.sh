@@ -19,7 +19,7 @@ step "tofu fmt -check -recursive"
 
 dirs=(
   modules/_shared/naming
-  modules/_shared/node-pool-openstack
+  modules/_shared/node-pool-aws
   modules/rke2-cluster/buildingblock
   modules/rke2-cluster/backplane
   modules/rancher/buildingblock

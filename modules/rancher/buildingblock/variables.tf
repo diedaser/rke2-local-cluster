@@ -24,7 +24,7 @@ variable "project_identifier" {
 }
 
 variable "building_block_uuid" {
-  description = "meshStack building block UUID (source: Building Block UUID). Makes the Barbican secret name unique."
+  description = "meshStack building block UUID (source: Building Block UUID). Makes the admin secret name unique."
   type        = string
 
   validation {
@@ -33,20 +33,20 @@ variable "building_block_uuid" {
   }
 }
 
-variable "openstack_project_id" {
-  description = "OpenStack project ID of the meshStack tenant (source: Platform Tenant ID). Must match the project of the runner credentials."
+variable "aws_account_id" {
+  description = "AWS account ID of the meshStack tenant (source: Platform Tenant ID). Must match the account of the runner credentials."
   type        = string
 
   validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.openstack_project_id))
-    error_message = "openstack_project_id must be a 32 character hex OpenStack project ID."
+    condition     = can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "aws_account_id must be a 12 digit AWS account ID."
   }
 }
 
 # --- From the parent building block (rke2-cluster) -----------------------------
 
 variable "kubeconfig_secret_name" {
-  description = "Name of the Barbican secret holding the cluster admin kubeconfig (source: Parent Building Block Output `kubeconfig_secret_name`)."
+  description = "Name of the AWS Secrets Manager secret holding the cluster admin kubeconfig (source: Parent Building Block Output `kubeconfig_secret_name`)."
   type        = string
 
   validation {
@@ -187,4 +187,15 @@ variable "ingress_class_name" {
   description = "Ingress class for Rancher. Null uses the cluster default class (RKE2's ingress controller)."
   type        = string
   default     = null
+}
+
+variable "kms_key_arn" {
+  description = "Optional customer managed KMS key ARN for the admin secret. Null uses the AWS managed key aws/secretsmanager. Reading the kubeconfig secret needs kms:Decrypt on the key used by rke2-cluster."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.kms_key_arn == null || can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]+$", var.kms_key_arn))
+    error_message = "kms_key_arn must be a KMS key ARN."
+  }
 }

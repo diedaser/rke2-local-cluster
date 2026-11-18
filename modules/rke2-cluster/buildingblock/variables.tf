@@ -33,13 +33,13 @@ variable "building_block_uuid" {
   }
 }
 
-variable "openstack_project_id" {
-  description = "OpenStack project ID of the meshStack tenant (source: Platform Tenant ID). Must match the project of the runner credentials."
+variable "aws_account_id" {
+  description = "AWS account ID of the meshStack tenant (source: Platform Tenant ID). Must match the account of the runner credentials."
   type        = string
 
   validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.openstack_project_id))
-    error_message = "openstack_project_id must be a 32 character hex OpenStack project ID."
+    condition     = can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "aws_account_id must be a 12 digit AWS account ID."
   }
 }
 
@@ -90,24 +90,30 @@ variable "agent_count" {
   }
 }
 
-variable "server_flavor" {
-  description = "Nova flavor for server nodes. Rancher management clusters need at least 4 vCPU and 16 GiB RAM."
+variable "server_instance_type" {
+  description = "EC2 instance type for server nodes. Rancher management clusters need at least 4 vCPU and 16 GiB RAM. Its architecture must match ami_id."
   type        = string
+  default     = "m7i.xlarge"
 
   validation {
-    condition     = length(trimspace(var.server_flavor)) > 0
-    error_message = "server_flavor must not be empty."
+    condition     = can(regex("^[a-z][a-z0-9-]*\\.[a-z0-9]+$", var.server_instance_type))
+    error_message = "server_instance_type must be an EC2 instance type such as m7i.xlarge."
   }
 }
 
-variable "agent_flavor" {
-  description = "Nova flavor for agent nodes. Defaults to server_flavor."
+variable "agent_instance_type" {
+  description = "EC2 instance type for agent nodes. Defaults to server_instance_type."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.agent_instance_type == null || can(regex("^[a-z][a-z0-9-]*\\.[a-z0-9]+$", var.agent_instance_type))
+    error_message = "agent_instance_type must be an EC2 instance type such as m7i.xlarge."
+  }
 }
 
 variable "api_allowed_cidrs" {
-  description = "CIDRs allowed to reach the Kubernetes API (6443) on the load balancer."
+  description = "CIDRs allowed to reach the Kubernetes API (6443) on the client-facing load balancer."
   type        = list(string)
 
   validation {
@@ -118,13 +124,13 @@ variable "api_allowed_cidrs" {
 
 # --- Platform-controlled inputs ------------------------------------------------
 
-variable "image_name" {
-  description = "Glance image name (Ubuntu 24.04 LTS or SLE Micro with cloud-init)."
+variable "ami_id" {
+  description = "AMI ID of Ubuntu 24.04 LTS for the region (pinned, ADR-009). Canonical publishes it in SSM: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id."
   type        = string
 
   validation {
-    condition     = length(trimspace(var.image_name)) > 0
-    error_message = "image_name must not be empty."
+    condition     = can(regex("^ami-[0-9a-f]{8,17}$", var.ami_id))
+    error_message = "ami_id must be an AMI ID such as ami-0123456789abcdef0."
   }
 }
 
@@ -185,7 +191,7 @@ variable "runner_egress_cidrs" {
 }
 
 variable "ingress_allowed_cidrs" {
-  description = "CIDRs allowed to reach ingress (80/443, Rancher UI) on the load balancer."
+  description = "CIDRs allowed to reach ingress (80/443, Rancher UI) on the client-facing load balancer."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 
@@ -195,52 +201,39 @@ variable "ingress_allowed_cidrs" {
   }
 }
 
-variable "external_network_name" {
-  description = "Name of the external (provider) network used for the router gateway and the load balancer floating IP."
-  type        = string
-
-  validation {
-    condition     = length(trimspace(var.external_network_name)) > 0
-    error_message = "external_network_name must not be empty."
-  }
-}
-
-variable "assign_floating_ip" {
-  description = "Assign a floating IP to the load balancer VIP. Disable only if the runner and users reach the private subnet directly."
+variable "public_load_balancer" {
+  description = "Create an internet-facing NLB for clients (6443, 80, 443). Disable only if the runner and users reach the VPC privately (VPN, peering, Transit Gateway)."
   type        = bool
   default     = true
 }
 
-variable "subnet_cidr" {
-  description = "CIDR of the cluster subnet. Must not overlap the RKE2 pod (10.42.0.0/16) and service (10.43.0.0/16) CIDRs."
+variable "vpc_cidr" {
+  description = "CIDR of the cluster VPC, /16 to /24. Split into 8 subnets (4 private, 4 public). Must not overlap the RKE2 pod (10.42.0.0/16) and service (10.43.0.0/16) CIDRs."
   type        = string
-  default     = "192.168.42.0/24"
+  default     = "10.100.0.0/16"
 
   validation {
-    condition     = can(cidrhost(var.subnet_cidr, 0)) && !contains(["10.42.", "10.43."], substr(var.subnet_cidr, 0, 6))
-    error_message = "subnet_cidr must be a valid CIDR outside 10.42.0.0/16 and 10.43.0.0/16."
-  }
-}
-
-variable "dns_nameservers" {
-  description = "DNS servers for the cluster subnet. Empty uses the Neutron default."
-  type        = list(string)
-  default     = []
-
-  validation {
-    condition     = alltrue([for ip in var.dns_nameservers : can(cidrhost("${ip}/32", 0))])
-    error_message = "dns_nameservers must contain IPv4 addresses."
+    # Integer range check against 10.42.0.0 - 10.43.255.255.
+    condition = can(cidrhost(var.vpc_cidr, 0)) && try(
+      tonumber(split("/", var.vpc_cidr)[1]) >= 16 && tonumber(split("/", var.vpc_cidr)[1]) <= 24 && alltrue([
+        for o in [[for x in split(".", cidrhost(var.vpc_cidr, 0)) : tonumber(x)]] :
+        o[0] * 16777216 + o[1] * 65536 + o[2] * 256 + o[3] > 170655743 ||
+        o[0] * 16777216 + o[1] * 65536 + o[2] * 256 + o[3] + pow(2, 32 - tonumber(split("/", var.vpc_cidr)[1])) <= 170524672
+      ]),
+      false,
+    )
+    error_message = "vpc_cidr must be a valid /16 to /24 CIDR outside 10.42.0.0/16 and 10.43.0.0/16."
   }
 }
 
 variable "api_extra_sans" {
-  description = "Additional DNS names or IPs for the API server certificate (for example a DNS name pointing at the LB)."
+  description = "Additional DNS names or IPs for the API server certificate (for example a DNS name pointing at the NLB). The NLB DNS names are always included."
   type        = list(string)
   default     = []
 }
 
-variable "ssh_key_pair" {
-  description = "Optional Nova key pair for break-glass SSH. Never used by OpenTofu (ADR-002)."
+variable "ssh_key_name" {
+  description = "Optional EC2 key pair name for break-glass SSH (from a bastion in the VPC). Never used by OpenTofu (ADR-002)."
   type        = string
   default     = null
 }
@@ -256,33 +249,48 @@ variable "ssh_allowed_cidrs" {
   }
 }
 
-variable "boot_volume_size_gb" {
-  description = "Boot volume size per node in GiB."
+variable "root_volume_size_gb" {
+  description = "gp3 root volume size per node in GiB."
   type        = number
   default     = 100
 
   validation {
-    condition     = var.boot_volume_size_gb >= 40
-    error_message = "boot_volume_size_gb must be at least 40."
+    condition     = var.root_volume_size_gb >= 40 && var.root_volume_size_gb <= 16384
+    error_message = "root_volume_size_gb must be between 40 and 16384."
   }
 }
 
-variable "boot_volume_type" {
-  description = "Optional Cinder volume type for boot volumes. Use a low-latency SSD type, etcd is latency sensitive."
+variable "root_volume_iops" {
+  description = "Provisioned IOPS of the gp3 root volumes. etcd is latency sensitive; 3000 is the gp3 baseline."
+  type        = number
+  default     = 3000
+
+  validation {
+    condition     = var.root_volume_iops >= 3000 && var.root_volume_iops <= 16000
+    error_message = "root_volume_iops must be between 3000 and 16000."
+  }
+}
+
+variable "kms_key_arn" {
+  description = "Optional customer managed KMS key ARN for EBS volumes and the kubeconfig secret. Null uses the AWS managed keys (aws/ebs, aws/secretsmanager)."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.kms_key_arn == null || can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]+$", var.kms_key_arn))
+    error_message = "kms_key_arn must be a KMS key ARN."
+  }
 }
 
 variable "availability_zones" {
-  description = "Optional availability zones, assigned to nodes round-robin."
+  description = "Optional availability zones (max. 4). Empty uses the first 3 zones of the region (sorted). Nodes are spread round-robin."
   type        = list(string)
   default     = []
-}
 
-variable "lb_provider" {
-  description = "Optional Octavia provider (for example `amphora` or `ovn`). Null uses the cloud default."
-  type        = string
-  default     = null
+  validation {
+    condition     = length(var.availability_zones) <= 4 && length(distinct(var.availability_zones)) == length(var.availability_zones)
+    error_message = "availability_zones must contain at most 4 distinct zones."
+  }
 }
 
 variable "etcd_snapshot_schedule_cron" {

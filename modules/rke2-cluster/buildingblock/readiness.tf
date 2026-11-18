@@ -1,6 +1,7 @@
 # Readiness is polled, not slept (ADR-007). Authenticates with the admin
 # client certificate and verifies the API server against the cluster CA.
-# 90 attempts x 10 s = 15 minutes for cloud-init, RKE2 install and etcd.
+# 120 attempts x 10 s = 20 minutes for cloud-init, RKE2 install, etcd and
+# NLB target registration (which alone takes several minutes).
 
 data "http" "api_readyz" {
   url                = "${local.api_server_url}/readyz"
@@ -10,7 +11,7 @@ data "http" "api_readyz" {
   request_timeout_ms = 10000
 
   retry {
-    attempts     = 90
+    attempts     = 120
     min_delay_ms = 10000
     max_delay_ms = 10000
   }
@@ -18,8 +19,9 @@ data "http" "api_readyz" {
   depends_on = [
     module.server_init,
     module.server_join,
-    openstack_lb_members_v2.this,
-    openstack_networking_floatingip_associate_v2.lb,
+    aws_lb_listener.this,
+    aws_lb_target_group_attachment.this,
+    aws_vpc_security_group_ingress_rule.lb_clients,
   ]
 
   lifecycle {

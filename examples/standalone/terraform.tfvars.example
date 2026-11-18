@@ -1,13 +1,15 @@
 # Copy to terraform.tfvars (git-ignored) and adjust.
 # Export credentials and the passphrase in your shell instead of writing them here:
-#   source <your-openrc.sh>          # OS_* variables
+#   export AWS_PROFILE=<dev-profile> AWS_REGION=eu-central-1   # or AWS_ACCESS_KEY_ID/...
 #   export TF_VAR_state_encryption_passphrase=...
+#
+# Current Ubuntu 24.04 AMI for the region:
+#   aws ssm get-parameter --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id --query Parameter.Value --output text
 
-openstack_project_id  = "0123456789abcdef0123456789abcdef"
-cluster_name          = "dev-mgmt"
-server_count          = "1"
-server_flavor         = "m1.xlarge"
-image_name            = "ubuntu-24.04"
-external_network_name = "public"
-api_allowed_cidrs     = ["198.51.100.10/32"]
-rancher_hostname      = "rancher.dev.example.com"
+aws_account_id       = "123456789012"
+cluster_name         = "dev-mgmt"
+server_count         = "1"
+server_instance_type = "m7i.xlarge"
+ami_id               = "ami-0123456789abcdef0"
+api_allowed_cidrs    = ["198.51.100.10/32"]
+rancher_hostname     = "rancher.dev.example.com"

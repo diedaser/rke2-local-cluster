@@ -1,77 +1,166 @@
 # One-time setup by the platform team. NOT run by meshStack.
 #
-# Run authenticated as a user (password auth, OS_* environment) scoped to the
-# OpenStack project the clusters will live in. The application credential is
-# created for that user and inherits the selected roles in that project.
+# Run with administrator credentials for the AWS account the clusters will
+# live in (the meshStack tenant's account). Creates the IAM user whose access
+# key the meshStack runner uses for both building blocks.
 
 terraform {
   required_version = ">= 1.8"
 
   required_providers {
-    openstack = {
-      source  = "terraform-provider-openstack/openstack"
-      version = "~> 3.4.0"
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.73.0"
     }
   }
 }
 
-data "openstack_identity_auth_scope_v3" "current" {
-  name = "current"
+provider "aws" {
+  region = var.region
+
+  default_tags {
+    tags = {
+      "managed-by"     = "opentofu"
+      "building-block" = "rke2-cluster-backplane"
+    }
+  }
 }
 
-resource "openstack_identity_application_credential_v3" "meshstack_runner" {
-  name         = var.application_credential_name
-  description  = "meshStack building block runner for rke2-cluster and rancher. Managed by OpenTofu (backplane)."
-  roles        = var.roles
-  unrestricted = false
-  expires_at   = var.expires_at
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+locals {
+  account_id = data.aws_caller_identity.current.account_id
+  partition  = data.aws_partition.current.partition
+}
+
+resource "aws_iam_user" "meshstack_runner" {
+  name = var.iam_user_name
+  path = "/meshstack/"
 
   lifecycle {
     precondition {
-      condition     = data.openstack_identity_auth_scope_v3.current.project_id == var.project_id
-      error_message = "Authenticate scoped to project ${var.project_id} before running the backplane."
+      condition     = local.account_id == var.account_id
+      error_message = "Authenticate to account ${var.account_id} before running the backplane (current: ${local.account_id})."
     }
   }
 }
 
-# Optional quotas. Requires admin rights; disabled by default.
-resource "openstack_compute_quotaset_v2" "this" {
-  count = var.manage_quotas ? 1 : 0
+# Least privilege for what the building blocks create, restricted to one
+# region. EC2/ELB are not scoped further: resource-level conditions for the
+# full VPC/NLB/instance lifecycle are not uniformly supported by AWS.
+data "aws_iam_policy_document" "meshstack_runner" {
+  statement {
+    sid = "Network"
+    actions = [
+      # Read-only; the provider's refresh calls many Describe APIs.
+      "ec2:Describe*",
+      "ec2:*Vpc*",
+      "ec2:*Subnet*",
+      "ec2:*InternetGateway*",
+      "ec2:*NatGateway*",
+      "ec2:*RouteTable*",
+      "ec2:*Route",
+      "ec2:*SecurityGroup*",
+      "ec2:AllocateAddress",
+      "ec2:ReleaseAddress",
+      "ec2:AssociateAddress",
+      "ec2:DisassociateAddress",
+      "ec2:CreateTags",
+      "ec2:DeleteTags",
+    ]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
+  }
 
-  project_id    = var.project_id
-  instances     = var.quota.instances
-  cores         = var.quota.cores
-  ram           = var.quota.ram_mb
-  server_groups = 10
+  statement {
+    sid = "Compute"
+    actions = [
+      "ec2:RunInstances",
+      "ec2:TerminateInstances",
+      "ec2:StartInstances",
+      "ec2:StopInstances",
+      "ec2:ModifyInstanceAttribute",
+      "ec2:ModifyInstanceMetadataOptions",
+      "ec2:ModifyVolume",
+      "ec2:CreatePlacementGroup",
+      "ec2:DeletePlacementGroup",
+    ]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
+  }
+
+  statement {
+    sid       = "LoadBalancing"
+    actions   = ["elasticloadbalancing:*"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestedRegion"
+      values   = [var.region]
+    }
+  }
+
+  # First NLB in an account creates the ELB service-linked role.
+  statement {
+    sid       = "ElbServiceLinkedRole"
+    actions   = ["iam:CreateServiceLinkedRole"]
+    resources = ["arn:${local.partition}:iam::${local.account_id}:role/aws-service-role/elasticloadbalancing.amazonaws.com/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:AWSServiceName"
+      values   = ["elasticloadbalancing.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid = "Secrets"
+    actions = [
+      "secretsmanager:CreateSecret",
+      "secretsmanager:DeleteSecret",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:PutSecretValue",
+      "secretsmanager:UpdateSecret",
+      "secretsmanager:TagResource",
+      "secretsmanager:UntagResource",
+      "secretsmanager:GetResourcePolicy",
+    ]
+    resources = ["arn:${local.partition}:secretsmanager:${var.region}:${local.account_id}:secret:*"]
+  }
+
+  dynamic "statement" {
+    for_each = var.kms_key_arn == null ? [] : [var.kms_key_arn]
+    content {
+      sid = "CustomerManagedKey"
+      actions = [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey",
+        "kms:CreateGrant",
+      ]
+      resources = [statement.value]
+    }
+  }
 }
 
-resource "openstack_blockstorage_quotaset_v3" "this" {
-  count = var.manage_quotas ? 1 : 0
-
-  project_id = var.project_id
-  volumes    = var.quota.volumes
-  gigabytes  = var.quota.volume_gb
+resource "aws_iam_user_policy" "meshstack_runner" {
+  name   = "rke2-rancher-building-blocks"
+  user   = aws_iam_user.meshstack_runner.name
+  policy = data.aws_iam_policy_document.meshstack_runner.json
 }
 
-resource "openstack_networking_quota_v2" "this" {
-  count = var.manage_quotas ? 1 : 0
-
-  project_id          = var.project_id
-  floatingip          = var.quota.floating_ips
-  network             = 10
-  subnet              = 10
-  router              = 5
-  security_group      = 20
-  security_group_rule = 200
-}
-
-resource "openstack_lb_quota_v2" "this" {
-  count = var.manage_quotas ? 1 : 0
-
-  project_id     = var.project_id
-  loadbalancer   = var.quota.loadbalancers
-  listener       = var.quota.loadbalancers * 4
-  pool           = var.quota.loadbalancers * 4
-  health_monitor = var.quota.loadbalancers * 4
-  member         = var.quota.loadbalancers * 4 * 10
+# Long-lived key: rotate it regularly (docs/operations.md).
+resource "aws_iam_access_key" "meshstack_runner" {
+  user = aws_iam_user.meshstack_runner.name
 }

@@ -1,8 +1,9 @@
 # `rke2-cluster` building block
 
-Provisions network, security groups, an Octavia load balancer and RKE2 nodes on
-OpenStack, bootstraps RKE2 through cloud-init with an OpenTofu-generated PKI,
-waits for `/readyz`, and stores the admin kubeconfig in Barbican.
+Provisions a VPC, security groups, an internal (and optionally a public) NLB
+and RKE2 nodes on AWS EC2 (Ubuntu 24.04), bootstraps RKE2 through cloud-init
+with an OpenTofu-generated PKI, waits for `/readyz`, and stores the admin
+kubeconfig in AWS Secrets Manager.
 
 Executed by the meshStack building block runner. See the repository
 [README](../../../README.md), [CONTRIBUTING.md](../../../CONTRIBUTING.md) and the
@@ -18,56 +19,69 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.73.0 |
 | <a name="requirement_cloudinit"></a> [cloudinit](#requirement\_cloudinit) | ~> 2.4.0 |
 | <a name="requirement_http"></a> [http](#requirement\_http) | ~> 3.6.0 |
-| <a name="requirement_openstack"></a> [openstack](#requirement\_openstack) | ~> 3.4.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.9.0 |
 | <a name="requirement_tls"></a> [tls](#requirement\_tls) | ~> 4.4.0 |
 
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.73.0 |
 | <a name="provider_cloudinit"></a> [cloudinit](#provider\_cloudinit) | 2.4.1 |
-| <a name="provider_http"></a> [http](#provider\_http) | 3.6.2 |
-| <a name="provider_openstack"></a> [openstack](#provider\_openstack) | 3.4.0 |
+| <a name="provider_http"></a> [http](#provider\_http) | 3.6.3 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.9.1 |
-| <a name="provider_tls"></a> [tls](#provider\_tls) | 4.4.1 |
+| <a name="provider_tls"></a> [tls](#provider\_tls) | 4.4.2 |
 
 ## Modules
 
 | Name | Source | Version |
-| ---- | ------ | ------- |
-| <a name="module_agents"></a> [agents](#module\_agents) | ../../_shared/node-pool-openstack | n/a |
+|------|--------|---------|
+| <a name="module_agents"></a> [agents](#module\_agents) | ../../_shared/node-pool-aws | n/a |
 | <a name="module_naming"></a> [naming](#module\_naming) | ../../_shared/naming | n/a |
-| <a name="module_server_init"></a> [server\_init](#module\_server\_init) | ../../_shared/node-pool-openstack | n/a |
-| <a name="module_server_join"></a> [server\_join](#module\_server\_join) | ../../_shared/node-pool-openstack | n/a |
+| <a name="module_server_init"></a> [server\_init](#module\_server\_init) | ../../_shared/node-pool-aws | n/a |
+| <a name="module_server_join"></a> [server\_join](#module\_server\_join) | ../../_shared/node-pool-aws | n/a |
 
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
-| [openstack_compute_servergroup_v2.servers](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/compute_servergroup_v2) | resource |
-| [openstack_keymanager_secret_v1.kubeconfig](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/keymanager_secret_v1) | resource |
-| [openstack_lb_listener_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/lb_listener_v2) | resource |
-| [openstack_lb_loadbalancer_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/lb_loadbalancer_v2) | resource |
-| [openstack_lb_members_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/lb_members_v2) | resource |
-| [openstack_lb_monitor_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/lb_monitor_v2) | resource |
-| [openstack_lb_pool_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/lb_pool_v2) | resource |
-| [openstack_networking_floatingip_associate_v2.lb](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_floatingip_associate_v2) | resource |
-| [openstack_networking_floatingip_v2.lb](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_floatingip_v2) | resource |
-| [openstack_networking_network_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_network_v2) | resource |
-| [openstack_networking_router_interface_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_router_interface_v2) | resource |
-| [openstack_networking_router_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_router_v2) | resource |
-| [openstack_networking_secgroup_rule_v2.clients](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_secgroup_rule_v2) | resource |
-| [openstack_networking_secgroup_rule_v2.etcd](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_secgroup_rule_v2) | resource |
-| [openstack_networking_secgroup_rule_v2.nodes](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_secgroup_rule_v2) | resource |
-| [openstack_networking_secgroup_rule_v2.ssh](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_secgroup_rule_v2) | resource |
-| [openstack_networking_secgroup_v2.nodes](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_secgroup_v2) | resource |
-| [openstack_networking_secgroup_v2.servers](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_secgroup_v2) | resource |
-| [openstack_networking_subnet_v2.this](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/networking_subnet_v2) | resource |
+|------|------|
+| [aws_default_security_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/default_security_group) | resource |
+| [aws_eip.nat](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eip) | resource |
+| [aws_internet_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/internet_gateway) | resource |
+| [aws_lb.internal](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb) | resource |
+| [aws_lb.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb) | resource |
+| [aws_lb_listener.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener) | resource |
+| [aws_lb_target_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group) | resource |
+| [aws_lb_target_group_attachment.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) | resource |
+| [aws_nat_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/nat_gateway) | resource |
+| [aws_placement_group.servers](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/placement_group) | resource |
+| [aws_route.private_nat](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
+| [aws_route.public_internet](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
+| [aws_route_table.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
+| [aws_route_table.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
+| [aws_route_table_association.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
+| [aws_route_table_association.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
+| [aws_secretsmanager_secret.kubeconfig](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
+| [aws_secretsmanager_secret_version.kubeconfig](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
+| [aws_security_group.lb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
+| [aws_security_group.nodes](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
+| [aws_security_group.servers](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
+| [aws_subnet.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
+| [aws_subnet.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
+| [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc) | resource |
+| [aws_vpc_security_group_egress_rule.lb_to_vpc](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
+| [aws_vpc_security_group_egress_rule.nodes_all](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.etcd](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.lb_clients](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.lb_public_from_nat](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.nodes_from_lb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.nodes_self](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.ssh](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [random_password.rke2_token](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [tls_cert_request.admin](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/cert_request) | resource |
 | [tls_locally_signed_cert.admin](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/locally_signed_cert) | resource |
@@ -75,55 +89,53 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 | [tls_private_key.ca](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 | [tls_private_key.service_account](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 | [tls_self_signed_cert.ca](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/self_signed_cert) | resource |
+| [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [cloudinit_config.node](https://registry.terraform.io/providers/hashicorp/cloudinit/latest/docs/data-sources/config) | data source |
 | [http_http.api_readyz](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
-| [openstack_identity_auth_scope_v3.current](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/data-sources/identity_auth_scope_v3) | data source |
-| [openstack_networking_network_v2.external](https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/data-sources/networking_network_v2) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_api_allowed_cidrs"></a> [api\_allowed\_cidrs](#input\_api\_allowed\_cidrs) | CIDRs allowed to reach the Kubernetes API (6443) on the load balancer. | `list(string)` | n/a | yes |
+|------|-------------|------|---------|:--------:|
+| <a name="input_ami_id"></a> [ami\_id](#input\_ami\_id) | AMI ID of Ubuntu 24.04 LTS for the region (pinned, ADR-009). Canonical publishes it in SSM: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id. | `string` | n/a | yes |
+| <a name="input_api_allowed_cidrs"></a> [api\_allowed\_cidrs](#input\_api\_allowed\_cidrs) | CIDRs allowed to reach the Kubernetes API (6443) on the client-facing load balancer. | `list(string)` | n/a | yes |
+| <a name="input_aws_account_id"></a> [aws\_account\_id](#input\_aws\_account\_id) | AWS account ID of the meshStack tenant (source: Platform Tenant ID). Must match the account of the runner credentials. | `string` | n/a | yes |
 | <a name="input_building_block_uuid"></a> [building\_block\_uuid](#input\_building\_block\_uuid) | meshStack building block UUID (source: Building Block UUID). Makes resource names unique. | `string` | n/a | yes |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the cluster. Lowercase letters, digits and dashes, 3-31 characters, starting with a letter. | `string` | n/a | yes |
-| <a name="input_external_network_name"></a> [external\_network\_name](#input\_external\_network\_name) | Name of the external (provider) network used for the router gateway and the load balancer floating IP. | `string` | n/a | yes |
-| <a name="input_image_name"></a> [image\_name](#input\_image\_name) | Glance image name (Ubuntu 24.04 LTS or SLE Micro with cloud-init). | `string` | n/a | yes |
-| <a name="input_openstack_project_id"></a> [openstack\_project\_id](#input\_openstack\_project\_id) | OpenStack project ID of the meshStack tenant (source: Platform Tenant ID). Must match the project of the runner credentials. | `string` | n/a | yes |
 | <a name="input_project_identifier"></a> [project\_identifier](#input\_project\_identifier) | meshStack project identifier (source: Project Identifier). | `string` | n/a | yes |
-| <a name="input_server_flavor"></a> [server\_flavor](#input\_server\_flavor) | Nova flavor for server nodes. Rancher management clusters need at least 4 vCPU and 16 GiB RAM. | `string` | n/a | yes |
 | <a name="input_state_encryption_passphrase"></a> [state\_encryption\_passphrase](#input\_state\_encryption\_passphrase) | Passphrase for OpenTofu state encryption (ADR-004). Provided as environment variable TF\_VAR\_state\_encryption\_passphrase. | `string` | n/a | yes |
 | <a name="input_workspace_identifier"></a> [workspace\_identifier](#input\_workspace\_identifier) | meshStack workspace identifier (source: Workspace Identifier). | `string` | n/a | yes |
 | <a name="input_admin_cert_validity_hours"></a> [admin\_cert\_validity\_hours](#input\_admin\_cert\_validity\_hours) | Validity of the admin client certificate in hours. Re-applying within the last quarter of the validity (max. 30 days) renews it. | `number` | `8760` | no |
 | <a name="input_agent_count"></a> [agent\_count](#input\_agent\_count) | Number of agent (worker) nodes. 0 is the Rancher best practice for a dedicated management cluster. | `number` | `0` | no |
-| <a name="input_agent_flavor"></a> [agent\_flavor](#input\_agent\_flavor) | Nova flavor for agent nodes. Defaults to server\_flavor. | `string` | `null` | no |
-| <a name="input_api_extra_sans"></a> [api\_extra\_sans](#input\_api\_extra\_sans) | Additional DNS names or IPs for the API server certificate (for example a DNS name pointing at the LB). | `list(string)` | `[]` | no |
-| <a name="input_assign_floating_ip"></a> [assign\_floating\_ip](#input\_assign\_floating\_ip) | Assign a floating IP to the load balancer VIP. Disable only if the runner and users reach the private subnet directly. | `bool` | `true` | no |
-| <a name="input_availability_zones"></a> [availability\_zones](#input\_availability\_zones) | Optional availability zones, assigned to nodes round-robin. | `list(string)` | `[]` | no |
-| <a name="input_boot_volume_size_gb"></a> [boot\_volume\_size\_gb](#input\_boot\_volume\_size\_gb) | Boot volume size per node in GiB. | `number` | `100` | no |
-| <a name="input_boot_volume_type"></a> [boot\_volume\_type](#input\_boot\_volume\_type) | Optional Cinder volume type for boot volumes. Use a low-latency SSD type, etcd is latency sensitive. | `string` | `null` | no |
-| <a name="input_dns_nameservers"></a> [dns\_nameservers](#input\_dns\_nameservers) | DNS servers for the cluster subnet. Empty uses the Neutron default. | `list(string)` | `[]` | no |
+| <a name="input_agent_instance_type"></a> [agent\_instance\_type](#input\_agent\_instance\_type) | EC2 instance type for agent nodes. Defaults to server\_instance\_type. | `string` | `null` | no |
+| <a name="input_api_extra_sans"></a> [api\_extra\_sans](#input\_api\_extra\_sans) | Additional DNS names or IPs for the API server certificate (for example a DNS name pointing at the NLB). The NLB DNS names are always included. | `list(string)` | `[]` | no |
+| <a name="input_availability_zones"></a> [availability\_zones](#input\_availability\_zones) | Optional availability zones (max. 4). Empty uses the first 3 zones of the region (sorted). Nodes are spread round-robin. | `list(string)` | `[]` | no |
 | <a name="input_etcd_snapshot_retention"></a> [etcd\_snapshot\_retention](#input\_etcd\_snapshot\_retention) | Number of etcd snapshots to keep per server. | `number` | `28` | no |
 | <a name="input_etcd_snapshot_schedule_cron"></a> [etcd\_snapshot\_schedule\_cron](#input\_etcd\_snapshot\_schedule\_cron) | Cron schedule for local etcd snapshots. | `string` | `"0 */6 * * *"` | no |
 | <a name="input_hardening_profile"></a> [hardening\_profile](#input\_hardening\_profile) | RKE2 hardening profile: `cis` (production) or `none` (dev). | `string` | `"cis"` | no |
-| <a name="input_ingress_allowed_cidrs"></a> [ingress\_allowed\_cidrs](#input\_ingress\_allowed\_cidrs) | CIDRs allowed to reach ingress (80/443, Rancher UI) on the load balancer. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
+| <a name="input_ingress_allowed_cidrs"></a> [ingress\_allowed\_cidrs](#input\_ingress\_allowed\_cidrs) | CIDRs allowed to reach ingress (80/443, Rancher UI) on the client-facing load balancer. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_ingress_controller"></a> [ingress\_controller](#input\_ingress\_controller) | Ingress controller deployed by RKE2. Set explicitly because the RKE2 default changes across releases (ADR-008). | `string` | `"ingress-nginx"` | no |
-| <a name="input_lb_provider"></a> [lb\_provider](#input\_lb\_provider) | Optional Octavia provider (for example `amphora` or `ovn`). Null uses the cloud default. | `string` | `null` | no |
+| <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Optional customer managed KMS key ARN for EBS volumes and the kubeconfig secret. Null uses the AWS managed keys (aws/ebs, aws/secretsmanager). | `string` | `null` | no |
+| <a name="input_public_load_balancer"></a> [public\_load\_balancer](#input\_public\_load\_balancer) | Create an internet-facing NLB for clients (6443, 80, 443). Disable only if the runner and users reach the VPC privately (VPN, peering, Transit Gateway). | `bool` | `true` | no |
 | <a name="input_rke2_install_script_url"></a> [rke2\_install\_script\_url](#input\_rke2\_install\_script\_url) | URL of the RKE2 install script fetched by the nodes (not the runner). Override for a mirror. | `string` | `"https://get.rke2.io"` | no |
 | <a name="input_rke2_version"></a> [rke2\_version](#input\_rke2\_version) | RKE2 version (INSTALL\_RKE2\_VERSION). Must be supported by the Rancher version installed on top (support matrix). | `string` | `"v1.35.9+rke2r1"` | no |
+| <a name="input_root_volume_iops"></a> [root\_volume\_iops](#input\_root\_volume\_iops) | Provisioned IOPS of the gp3 root volumes. etcd is latency sensitive; 3000 is the gp3 baseline. | `number` | `3000` | no |
+| <a name="input_root_volume_size_gb"></a> [root\_volume\_size\_gb](#input\_root\_volume\_size\_gb) | gp3 root volume size per node in GiB. | `number` | `100` | no |
 | <a name="input_runner_egress_cidrs"></a> [runner\_egress\_cidrs](#input\_runner\_egress\_cidrs) | Egress CIDRs of the meshStack building block runner. Appended to the API and ingress allow lists so the runner can reach 6443 and 443. | `list(string)` | `[]` | no |
 | <a name="input_server_count"></a> [server\_count](#input\_server\_count) | Number of server nodes (control plane + etcd): 1 (dev), 3 or 5. A string because meshStack Single Select inputs arrive as strings; numbers are converted automatically. | `string` | `"3"` | no |
+| <a name="input_server_instance_type"></a> [server\_instance\_type](#input\_server\_instance\_type) | EC2 instance type for server nodes. Rancher management clusters need at least 4 vCPU and 16 GiB RAM. Its architecture must match ami\_id. | `string` | `"m7i.xlarge"` | no |
 | <a name="input_ssh_allowed_cidrs"></a> [ssh\_allowed\_cidrs](#input\_ssh\_allowed\_cidrs) | CIDRs (bastion/admin) allowed to SSH to the nodes. Empty means no SSH rule. | `list(string)` | `[]` | no |
-| <a name="input_ssh_key_pair"></a> [ssh\_key\_pair](#input\_ssh\_key\_pair) | Optional Nova key pair for break-glass SSH. Never used by OpenTofu (ADR-002). | `string` | `null` | no |
-| <a name="input_subnet_cidr"></a> [subnet\_cidr](#input\_subnet\_cidr) | CIDR of the cluster subnet. Must not overlap the RKE2 pod (10.42.0.0/16) and service (10.43.0.0/16) CIDRs. | `string` | `"192.168.42.0/24"` | no |
+| <a name="input_ssh_key_name"></a> [ssh\_key\_name](#input\_ssh\_key\_name) | Optional EC2 key pair name for break-glass SSH (from a bastion in the VPC). Never used by OpenTofu (ADR-002). | `string` | `null` | no |
+| <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR of the cluster VPC, /16 to /24. Split into 8 subnets (4 private, 4 public). Must not overlap the RKE2 pod (10.42.0.0/16) and service (10.43.0.0/16) CIDRs. | `string` | `"10.100.0.0/16"` | no |
 
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
-| <a name="output_api_server_url"></a> [api\_server\_url](#output\_api\_server\_url) | Kubernetes API URL through the load balancer. |
-| <a name="output_kubeconfig_secret_name"></a> [kubeconfig\_secret\_name](#output\_kubeconfig\_secret\_name) | Name of the Barbican secret holding the admin kubeconfig. Consumed by the `rancher` building block. |
-| <a name="output_kubeconfig_secret_ref"></a> [kubeconfig\_secret\_ref](#output\_kubeconfig\_secret\_ref) | Barbican reference (URL) of the admin kubeconfig secret. |
-| <a name="output_lb_ip"></a> [lb\_ip](#output\_lb\_ip) | Client-facing IP of the load balancer (floating IP, or VIP if no floating IP is assigned). Point the Rancher DNS record here. |
+|------|-------------|
+| <a name="output_api_server_url"></a> [api\_server\_url](#output\_api\_server\_url) | Kubernetes API URL through the client-facing load balancer. |
+| <a name="output_kubeconfig_secret_arn"></a> [kubeconfig\_secret\_arn](#output\_kubeconfig\_secret\_arn) | ARN of the admin kubeconfig secret (informational). |
+| <a name="output_kubeconfig_secret_name"></a> [kubeconfig\_secret\_name](#output\_kubeconfig\_secret\_name) | Name of the AWS Secrets Manager secret holding the admin kubeconfig. Consumed by the `rancher` building block. |
+| <a name="output_lb_dns_name"></a> [lb\_dns\_name](#output\_lb\_dns\_name) | DNS name of the client-facing NLB (public, or internal if public\_load\_balancer = false). Point the Rancher DNS record (CNAME or Route 53 alias) here. |
 | <a name="output_summary"></a> [summary](#output\_summary) | Markdown summary shown in meshStack after apply. |
 <!-- END_TF_DOCS -->

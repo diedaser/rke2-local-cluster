@@ -1,5 +1,5 @@
 # Composes both building blocks without meshStack, for development and
-# end-to-end tests against a dev OpenStack project.
+# end-to-end tests against a dev AWS account.
 #
 # The rancher module configures its Kubernetes/Helm providers from a secret
 # the cluster module creates, so the first apply is two-phase:
@@ -40,8 +40,8 @@ variable "state_encryption_passphrase" {
   sensitive   = true
 }
 
-variable "openstack_project_id" {
-  description = "OpenStack project ID the OS_* credentials are scoped to."
+variable "aws_account_id" {
+  description = "AWS account ID the AWS_* credentials belong to."
   type        = string
 }
 
@@ -57,18 +57,14 @@ variable "server_count" {
   default     = "1"
 }
 
-variable "server_flavor" {
-  description = "Nova flavor for server nodes."
+variable "server_instance_type" {
+  description = "EC2 instance type for server nodes."
   type        = string
+  default     = "m7i.xlarge"
 }
 
-variable "image_name" {
-  description = "Glance image name."
-  type        = string
-}
-
-variable "external_network_name" {
-  description = "External network for the router and floating IP."
+variable "ami_id" {
+  description = "Ubuntu 24.04 AMI ID for the region (see the ami_id input of rke2-cluster)."
   type        = string
 }
 
@@ -78,7 +74,7 @@ variable "api_allowed_cidrs" {
 }
 
 variable "rancher_hostname" {
-  description = "Rancher FQDN. Create the DNS record for the lb_ip output between the two apply phases."
+  description = "Rancher FQDN. Create the DNS record (CNAME) for the lb_dns_name output between the two apply phases."
   type        = string
 }
 
@@ -94,16 +90,15 @@ module "rke2_cluster" {
   workspace_identifier        = local.workspace_identifier
   project_identifier          = local.project_identifier
   building_block_uuid         = "00000000-0000-4000-8000-000000000001"
-  openstack_project_id        = var.openstack_project_id
+  aws_account_id              = var.aws_account_id
   state_encryption_passphrase = var.state_encryption_passphrase
 
-  cluster_name          = var.cluster_name
-  server_count          = var.server_count
-  server_flavor         = var.server_flavor
-  image_name            = var.image_name
-  external_network_name = var.external_network_name
-  api_allowed_cidrs     = var.api_allowed_cidrs
-  hardening_profile     = "none"
+  cluster_name         = var.cluster_name
+  server_count         = var.server_count
+  server_instance_type = var.server_instance_type
+  ami_id               = var.ami_id
+  api_allowed_cidrs    = var.api_allowed_cidrs
+  hardening_profile    = "none"
 }
 
 module "rancher" {
@@ -112,7 +107,7 @@ module "rancher" {
   workspace_identifier        = local.workspace_identifier
   project_identifier          = local.project_identifier
   building_block_uuid         = "00000000-0000-4000-8000-000000000002"
-  openstack_project_id        = var.openstack_project_id
+  aws_account_id              = var.aws_account_id
   state_encryption_passphrase = var.state_encryption_passphrase
 
   kubeconfig_secret_name = module.rke2_cluster.kubeconfig_secret_name
@@ -126,9 +121,9 @@ output "api_server_url" {
   value       = module.rke2_cluster.api_server_url
 }
 
-output "lb_ip" {
-  description = "Point the Rancher DNS record here."
-  value       = module.rke2_cluster.lb_ip
+output "lb_dns_name" {
+  description = "Point the Rancher DNS record (CNAME) here."
+  value       = module.rke2_cluster.lb_dns_name
 }
 
 output "rancher_url" {

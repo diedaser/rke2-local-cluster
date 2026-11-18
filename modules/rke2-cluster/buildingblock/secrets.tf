@@ -1,6 +1,6 @@
-# The admin kubeconfig goes to Barbican; only references leave the building
-# block (ADR-012). The child building block `rancher` looks the secret up by
-# name, because the Barbican data source cannot look up by reference.
+# The admin kubeconfig goes to AWS Secrets Manager; only its name and ARN
+# leave the building block (ADR-012). The child building block `rancher`
+# reads the secret by name.
 # Changes here require an ADR update (CONTRIBUTING.md rule 6).
 
 locals {
@@ -15,18 +15,19 @@ locals {
   kubeconfig_secret_name = "${local.prefix}-kubeconfig"
 }
 
-resource "openstack_keymanager_secret_v1" "kubeconfig" {
-  name                 = local.kubeconfig_secret_name
-  secret_type          = "opaque"
-  payload              = local.kubeconfig
-  payload_content_type = "text/plain"
-  metadata             = local.labels
+resource "aws_secretsmanager_secret" "kubeconfig" {
+  name        = local.kubeconfig_secret_name
+  description = "Admin kubeconfig of RKE2 cluster ${var.cluster_name} (meshStack building block ${var.building_block_uuid})."
+  kms_key_id  = var.kms_key_arn
 
-  # Barbican secrets are immutable: a renewed admin certificate replaces the
-  # secret. Create the new one first so readers never find no secret.
-  lifecycle {
-    create_before_destroy = true
-  }
+  # The kubeconfig is worthless once the cluster is gone. Immediate deletion
+  # lets the same building block instance be re-created under the same name.
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "kubeconfig" {
+  secret_id     = aws_secretsmanager_secret.kubeconfig.id
+  secret_string = local.kubeconfig
 
   # Publish credentials only for a cluster that is actually reachable.
   depends_on = [data.http.api_readyz]
