@@ -16,8 +16,8 @@ ami_id               = "ami-0123456789abcdef0"
 # below is a documentation placeholder and never matches.
 api_allowed_cidrs    = ["198.51.100.10/32"]
 
-# Must resolve to the lb_dns_name output from the machine running tofu, for apply
-# AND destroy (data.http.rancher_ping is re-read on every plan). Without a real
-# DNS record, add "<NLB IP> <hostname>" to /etc/hosts after phase one:
-#   getent ahostsv4 "$(tofu output -raw lb_dns_name)"
-rancher_hostname     = "rancher.dev.example.com"
+# Optional. Unset, Rancher uses the public NLB DNS name (tofu output rancher_url),
+# which needs no DNS record and survives rebuilds. A custom FQDN must resolve to
+# the lb_dns_name output from the machine running tofu, for apply AND destroy
+# (data.http.rancher_ping is re-read on every plan).
+# rancher_hostname   = "rancher.dev.example.com"

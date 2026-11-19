@@ -68,7 +68,7 @@ Compare `sha256sum server-ca.crt` on server 0 with the hash in the token. Fix th
 - **DNS:** the hostname must resolve, from the runner, to the cluster's `lb_dns_name` output (CNAME or Route 53 alias). Create the record before running `rancher`.
 - **443 not allowed:** the runner egress IPs must be in the NLB security group's 80/443 rules (`ingress_allowed_cidrs`, plus `runner_egress_cidrs`, which is appended automatically).
 - **Rancher pods not ready:** `kubectl -n cattle-system get pods` and `kubectl -n cattle-system logs deploy/rancher`.
-- **Standalone without a DNS record:** map the hostname to one of the NLB's IPs on your workstation (`getent ahostsv4 <lb_dns_name>`, then add `<ip> <rancher_hostname>` to `/etc/hosts`). Check with `curl -sk --resolve <rancher_hostname>:443:<ip> https://<rancher_hostname>/ping`, which should print `pong`. Under WSL, `/etc/hosts` is regenerated on restart unless `generateHosts = false` is set in `/etc/wsl.conf`.
+- **Standalone without a DNS record:** leave `rancher_hostname` unset; the example then uses the NLB DNS name. With a custom hostname, map it to one of the NLB's IPs on your workstation (`getent ahostsv4 <lb_dns_name>`, then add `<ip> <rancher_hostname>` to `/etc/hosts`). Check with `curl -sk --resolve <rancher_hostname>:443:<ip> https://<rancher_hostname>/ping`, which should print `pong`. Under WSL, `/etc/hosts` is regenerated on restart unless `generateHosts = false` is set in `/etc/wsl.conf`.
 
 ## Destroy blocked by the ping check
 

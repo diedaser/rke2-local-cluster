@@ -74,8 +74,9 @@ variable "api_allowed_cidrs" {
 }
 
 variable "rancher_hostname" {
-  description = "Rancher FQDN. Create the DNS record (CNAME) for the lb_dns_name output between the two apply phases."
+  description = "Rancher FQDN. Null (default) uses the public NLB DNS name, which resolves without a DNS record or /etc/hosts entry and follows the NLB across rebuilds. Set a real FQDN only together with a CNAME to the lb_dns_name output."
   type        = string
+  default     = null
 }
 
 locals {
@@ -112,7 +113,7 @@ module "rancher" {
 
   kubeconfig_secret_name = module.rke2_cluster.kubeconfig_secret_name
   api_server_url         = module.rke2_cluster.api_server_url
-  rancher_hostname       = var.rancher_hostname
+  rancher_hostname       = coalesce(var.rancher_hostname, module.rke2_cluster.lb_dns_name)
   replicas               = tonumber(var.server_count)
 }
 
@@ -122,7 +123,7 @@ output "api_server_url" {
 }
 
 output "lb_dns_name" {
-  description = "Point the Rancher DNS record (CNAME) here."
+  description = "Client NLB DNS name. Rancher's hostname unless rancher_hostname is set; then point its CNAME here."
   value       = module.rke2_cluster.lb_dns_name
 }
 
