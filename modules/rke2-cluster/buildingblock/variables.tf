@@ -159,13 +159,13 @@ variable "hardening_profile" {
 }
 
 variable "ingress_controller" {
-  description = "Ingress controller deployed by RKE2. Set explicitly because the RKE2 default changes across releases (ADR-008)."
+  description = "Ingress controller deployed by RKE2. Set explicitly because the RKE2 default changes across releases (ADR-008). Only traefik: ingress-nginx is retired upstream and removed in RKE2 v1.37."
   type        = string
-  default     = "ingress-nginx"
+  default     = "traefik"
 
   validation {
-    condition     = contains(["ingress-nginx", "traefik"], var.ingress_controller)
-    error_message = "ingress_controller must be 'ingress-nginx' or 'traefik'."
+    condition     = contains(["traefik"], var.ingress_controller)
+    error_message = "ingress_controller must be 'traefik'. ingress-nginx is retired upstream and no longer supported (ADR-008)."
   }
 }
 

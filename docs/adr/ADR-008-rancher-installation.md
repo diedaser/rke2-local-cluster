@@ -11,7 +11,7 @@
 - Telemetry opt-out uses `rancher2_setting.telemetry_opt` (`telemetry-opt = out`) through a second provider alias `rancher2.admin`, configured with the bootstrap token.
 - `tls_source` can be `rancher` (default), `letsEncrypt` (requires `letsencrypt_email`, enforced by a precondition) or `secret`. With `secret`, `tls_certificate_pem` and `tls_private_key_pem` are written to the `tls-rancher-ingress` secret.
 - The rancher2 providers set `insecure = var.tls_source != "secret"`. With `rancher` the CA is generated in-cluster during the same run, and with `letsEncrypt` the certificate may not be issued yet. The bootstrap password is single-use. The readiness ping always uses `insecure`.
-- The **ingress controller** is set explicitly in the RKE2 config through the `rke2-cluster` input `ingress_controller` (`ingress-nginx` by default, or `traefik`), because the RKE2 default has changed across releases. The `rancher` input `ingress_class_name` can select a class. By default it is unset, which uses the cluster default class.
+- The **ingress controller** is set explicitly in the RKE2 config through the `rke2-cluster` input `ingress_controller` (only `traefik`), because the RKE2 default has changed across releases. ingress-nginx was retired upstream in March 2026, RKE2 v1.36 made Traefik the default for new clusters, and v1.37 removes ingress-nginx, so it is no longer accepted. The `rancher` input `ingress_class_name` defaults to `traefik` and is passed to the Rancher ingress and the Let's Encrypt HTTP-01 solver explicitly, instead of relying on the cluster default class.
 - The rancher2 provider major version tracks the Rancher minor version (v15 corresponds to Rancher 2.15).
 
 ## Consequences

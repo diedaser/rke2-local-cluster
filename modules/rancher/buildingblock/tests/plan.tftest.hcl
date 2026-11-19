@@ -128,7 +128,7 @@ run "letsencrypt" {
   variables {
     tls_source         = "letsEncrypt"
     letsencrypt_email  = "platform@example.com"
-    ingress_class_name = "nginx"
+    ingress_class_name = "traefik"
     replicas           = 1
   }
 
@@ -138,7 +138,7 @@ run "letsencrypt" {
   }
 
   assert {
-    condition     = yamldecode(helm_release.rancher.values[0]).ingress.ingressClassName == "nginx"
+    condition     = yamldecode(helm_release.rancher.values[0]).ingress.ingressClassName == "traefik"
     error_message = "Ingress class must be passed to the chart."
   }
 

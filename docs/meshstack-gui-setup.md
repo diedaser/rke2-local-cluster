@@ -119,7 +119,7 @@ Create each input with **Add Input**. The **Name** must exactly match the OpenTo
 | `ami_id` | Static | String | Ubuntu 24.04 amd64 AMI ID of the region (prerequisite 7), for example `ami-0123456789abcdef0` |
 | `rke2_version` | Static | String | optional, default `v1.36.6+rke2r1` (Rancher v2.15.2 matrix: RKE2 v1.34 to v1.36). Format `v1.xx.y+rke2rN` |
 | `hardening_profile` | Static | Single Select | options `cis`, `none`. Value: `cis` |
-| `ingress_controller` | Static | Single Select | optional, options `ingress-nginx`, `traefik`. Default `ingress-nginx` |
+| `ingress_controller` | Static | Single Select | optional, only option `traefik` (default). ingress-nginx is retired upstream and rejected |
 | `admin_cert_validity_hours` | Static | Integer | optional, default `8760` (24 to 87600) |
 | `runner_egress_cidrs` | Static | Code | optional, for example `["203.0.113.10/32"]`. Default `[]` |
 | `ingress_allowed_cidrs` | Static | Code | optional, default `["0.0.0.0/0"]` (who may reach 80/443) |
@@ -230,7 +230,7 @@ Add **`RKE2 Cluster (Rancher management)`** as a dependency. This guarantees the
 | `cert_manager_version` | Static | String | Variable | no | optional, default `v1.21.2` |
 | `rancher_chart_repository` | Static | String | Variable | no | optional, default rancher-stable `https://releases.rancher.com/server-charts/stable`; use the rancher-prime URL if licensed |
 | `replicas` | Static | Integer | Variable | no | optional, default `3`. Set to the server count (1 to 3) |
-| `ingress_class_name` | Static | String | Variable | no | optional; empty uses the cluster's default ingress class |
+| `ingress_class_name` | Static | String | Variable | no | optional, default `traefik` (RKE2's Traefik class); also used by the Let's Encrypt HTTP-01 solver |
 | `kms_key_arn` | Static | String | Variable | no | optional, customer managed KMS key for the admin secret |
 | `rancher_hostname` | User Input | String | Variable | no | regex `^([a-z0-9-]+\.)+[a-z]{2,}$` |
 | `tls_source` | User Input | Single Select | Variable | no | options `rancher`, `letsEncrypt`, `secret`. Default `rancher` |

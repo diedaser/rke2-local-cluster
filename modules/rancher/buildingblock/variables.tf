@@ -184,9 +184,9 @@ variable "replicas" {
 }
 
 variable "ingress_class_name" {
-  description = "Ingress class for Rancher. Null uses the cluster default class (RKE2's ingress controller)."
+  description = "Ingress class for Rancher and the Let's Encrypt HTTP-01 solver. Defaults to RKE2's Traefik class; null uses the cluster default class."
   type        = string
-  default     = null
+  default     = "traefik"
 }
 
 variable "kms_key_arn" {

@@ -47,8 +47,8 @@ locals {
               "cattle-monitoring-system", "cattle-neuvector-system", "cattle-prometheus",
               "cattle-provisioning-capi-system", "cattle-resources-system", "cattle-sriov-system",
               "cattle-system", "cattle-ui-plugin-system", "cattle-windows-gmsa-system",
-              "cert-manager", "cis-operator-system", "fleet-default", "ingress-nginx",
-              "istio-system", "kube-node-lease", "kube-public", "kube-system", "longhorn-system",
+              "cert-manager", "cis-operator-system", "fleet-default", "istio-system",
+              "kube-node-lease", "kube-public", "kube-system", "longhorn-system",
               "rancher-alerting-drivers", "security-scan", "tigera-operator",
             ]
           }

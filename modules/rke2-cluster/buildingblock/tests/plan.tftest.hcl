@@ -211,7 +211,7 @@ run "cloud_init_content" {
   }
 
   assert {
-    condition     = strcontains(local.rke2_config["server_init"], "ingress-controller: \"ingress-nginx\"")
+    condition     = strcontains(local.rke2_config["server_init"], "ingress-controller: \"traefik\"")
     error_message = "Ingress controller must be set explicitly."
   }
 

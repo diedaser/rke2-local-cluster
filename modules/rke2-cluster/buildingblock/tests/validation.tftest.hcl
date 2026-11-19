@@ -242,6 +242,14 @@ run "rejects_unknown_ingress_controller" {
   expect_failures = [var.ingress_controller]
 }
 
+run "rejects_ingress_nginx" {
+  command = plan
+  variables {
+    ingress_controller = "ingress-nginx"
+  }
+  expect_failures = [var.ingress_controller]
+}
+
 run "rejects_plain_http_install_script" {
   command = plan
   variables {
