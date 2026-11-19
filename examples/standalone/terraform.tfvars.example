@@ -11,5 +11,13 @@ cluster_name         = "dev-mgmt"
 server_count         = "1"
 server_instance_type = "m7i.xlarge"
 ami_id               = "ami-0123456789abcdef0"
+# Must contain the egress IP of the machine running tofu (curl https://checkip.amazonaws.com).
+# Otherwise data.http.api_readyz retries for 20 minutes and then fails. The value
+# below is a documentation placeholder and never matches.
 api_allowed_cidrs    = ["198.51.100.10/32"]
+
+# Must resolve to the lb_dns_name output from the machine running tofu, for apply
+# AND destroy (data.http.rancher_ping is re-read on every plan). Without a real
+# DNS record, add "<NLB IP> <hostname>" to /etc/hosts after phase one:
+#   getent ahostsv4 "$(tofu output -raw lb_dns_name)"
 rancher_hostname     = "rancher.dev.example.com"
