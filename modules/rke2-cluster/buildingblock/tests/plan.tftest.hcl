@@ -226,7 +226,7 @@ run "cloud_init_content" {
   }
 
   assert {
-    condition     = strcontains(local.cloud_config["server_init"], "INSTALL_RKE2_VERSION='v1.35.9+rke2r1'")
+    condition     = strcontains(local.cloud_config["server_init"], "INSTALL_RKE2_VERSION='v1.36.6+rke2r1'")
     error_message = "RKE2 version must be pinned in the install command."
   }
 

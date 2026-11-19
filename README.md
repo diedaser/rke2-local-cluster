@@ -20,7 +20,7 @@ RKE2 v1.34 to v1.36):
 | Component | Version |
 |---|---|
 | OpenTofu | 1.12.8 (`.opentofu-version`) |
-| RKE2 | v1.35.9+rke2r1 |
+| RKE2 | v1.36.6+rke2r1 |
 | Rancher chart | 2.15.2 (`rancher/rancher2` provider ~> 15.1.0) |
 | cert-manager | v1.21.2 |
 

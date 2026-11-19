@@ -138,11 +138,12 @@ variable "rke2_version" {
   description = "RKE2 version (INSTALL_RKE2_VERSION). Must be supported by the Rancher version installed on top (support matrix)."
   type        = string
   # Rancher v2.15.2 support matrix: local/hosting cluster RKE2 v1.34 - v1.36.
-  default = "v1.35.9+rke2r1"
+  # v1.36.6 = RKE2 stable channel (2026-11-05).
+  default = "v1.36.6+rke2r1"
 
   validation {
     condition     = can(regex("^v1\\.[0-9]+\\.[0-9]+\\+rke2r[0-9]+$", var.rke2_version))
-    error_message = "rke2_version must be a pinned RKE2 release such as v1.35.9+rke2r1, never 'latest' or a channel."
+    error_message = "rke2_version must be a pinned RKE2 release such as v1.36.6+rke2r1, never 'latest' or a channel."
   }
 }
 

@@ -117,7 +117,7 @@ Create each input with **Add Input**. The **Name** must exactly match the OpenTo
 | Name | Source | Type | Value / options |
 |---|---|---|---|
 | `ami_id` | Static | String | Ubuntu 24.04 amd64 AMI ID of the region (prerequisite 7), for example `ami-0123456789abcdef0` |
-| `rke2_version` | Static | String | optional, default `v1.35.9+rke2r1` (Rancher v2.15.2 matrix: RKE2 v1.34 to v1.36). Format `v1.xx.y+rke2rN` |
+| `rke2_version` | Static | String | optional, default `v1.36.6+rke2r1` (Rancher v2.15.2 matrix: RKE2 v1.34 to v1.36). Format `v1.xx.y+rke2rN` |
 | `hardening_profile` | Static | Single Select | options `cis`, `none`. Value: `cis` |
 | `ingress_controller` | Static | Single Select | optional, options `ingress-nginx`, `traefik`. Default `ingress-nginx` |
 | `admin_cert_validity_hours` | Static | Integer | optional, default `8760` (24 to 87600) |
