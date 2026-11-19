@@ -18,6 +18,7 @@ AWS Secrets Manager (region `${region}`), not in meshStack:
 - Secret ARN: `${admin_secret_arn}`
 
 Fetch them with
+`AWS_REGION=${region} scripts/fetch-rancher-admin.sh ${admin_secret_name}`, or
 `aws secretsmanager get-secret-value --region ${region} --secret-id ${admin_secret_name} --query SecretString --output text`.
 
 %{ if tls_source == "rancher" ~}

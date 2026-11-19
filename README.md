@@ -46,7 +46,7 @@ modules/
   _shared/{naming,node-pool-aws}        # internal child modules
 examples/standalone/                     # both BBs without meshStack (dev)
 docs/                                    # ADRs, GUI setup, operations, troubleshooting
-scripts/                                 # validate-all.sh, fetch-kubeconfig.sh
+scripts/                                 # validate-all.sh, fetch-kubeconfig.sh, fetch-rancher-admin.sh
 ```
 
 ## Development
