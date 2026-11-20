@@ -235,3 +235,19 @@ run "rejects_short_recovery_window" {
   }
   expect_failures = [var.backup_encryption_recovery_window_days]
 }
+
+run "rejects_foreign_vpc_id" {
+  command = plan
+  variables {
+    mgmt_vpc_id = "my-vpc"
+  }
+  expect_failures = [var.mgmt_vpc_id]
+}
+
+run "rejects_foreign_subnet_ids" {
+  command = plan
+  variables {
+    mgmt_private_subnet_ids = { "eu-central-1a" = "10.100.0.0/19" }
+  }
+  expect_failures = [var.mgmt_private_subnet_ids]
+}

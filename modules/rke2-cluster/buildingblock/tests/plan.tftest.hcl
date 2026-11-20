@@ -142,8 +142,8 @@ run "default_topology" {
   }
 
   assert {
-    condition     = tolist(local.listeners["int-sup"].cidrs) == tolist(["10.100.0.0/16"])
-    error_message = "Supervisor port must only be reachable from the VPC."
+    condition     = length(local.listeners["int-sup"].cidrs) == 0 && length(local.listeners["int-api"].cidrs) == 0
+    error_message = "Internal API and supervisor must admit no CIDR with a public NLB, only the management nodes (lb_internal_from_nodes)."
   }
 
   assert {
@@ -414,7 +414,7 @@ run "internal_only" {
   }
 
   assert {
-    condition     = contains(local.listeners["int-api"].cidrs, "10.0.0.0/8") && contains(local.listeners["int-api"].cidrs, "10.100.0.0/16")
+    condition     = contains(local.listeners["int-api"].cidrs, "10.0.0.0/8") && !contains(local.listeners["int-api"].cidrs, "10.100.0.0/16")
     error_message = "Internal API listener must allow the clients and the VPC."
   }
 
@@ -437,4 +437,26 @@ run "rejects_foreign_account_credentials" {
   }
 
   expect_failures = [aws_vpc.this]
+}
+
+run "internal_listeners_admit_management_nodes_only" {
+  command = apply
+
+  assert {
+    condition = alltrue([for k, r in aws_vpc_security_group_ingress_rule.lb_internal_from_nodes : (
+      r.referenced_security_group_id == aws_security_group.nodes.id &&
+      r.security_group_id == aws_security_group.lb["internal"].id
+    )]) && toset([for r in aws_vpc_security_group_ingress_rule.lb_internal_from_nodes : r.from_port]) == toset([6443, 9345])
+    error_message = "The internal API and supervisor listeners must admit the management node security group."
+  }
+
+  assert {
+    condition     = length([for k, r in aws_vpc_security_group_ingress_rule.lb_clients : k if r.cidr_ipv4 == "10.100.0.0/16" && contains([6443, 9345], r.from_port)]) == 0
+    error_message = "The VPC CIDR must not reach the internal API or supervisor: downstream clusters share the VPC (ADR-015)."
+  }
+
+  assert {
+    condition     = output.vpc_id == aws_vpc.this.id && length(output.private_subnet_ids) == 3
+    error_message = "VPC and private subnets must be output for downstream clusters."
+  }
 }

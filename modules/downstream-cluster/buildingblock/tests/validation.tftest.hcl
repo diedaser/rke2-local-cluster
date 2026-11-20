@@ -1,6 +1,12 @@
 # Input validation rules. Mocked providers: never touches AWS or Rancher.
 
 mock_provider "aws" {
+  # All management private subnets live in the management VPC.
+  mock_data "aws_subnet" {
+    defaults = {
+      vpc_id = "vpc-0123456789abcdef0"
+    }
+  }
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"
@@ -9,11 +15,6 @@ mock_provider "aws" {
   mock_data "aws_region" {
     defaults = {
       region = "eu-central-1"
-    }
-  }
-  mock_data "aws_availability_zones" {
-    defaults = {
-      names = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
     }
   }
   mock_data "aws_secretsmanager_secret_version" {
@@ -45,6 +46,12 @@ variables {
   node_driver_secret_access_key      = "test-secret-key-not-secret-0123456789012"
   ami_id                             = "ami-0123456789abcdef0"
   cluster_name                       = "apps"
+  mgmt_vpc_id                        = "vpc-0123456789abcdef0"
+  mgmt_private_subnet_ids = {
+    "eu-central-1c" = "subnet-0000000000000000c"
+    "eu-central-1a" = "subnet-0000000000000000a"
+    "eu-central-1b" = "subnet-0000000000000000b"
+  }
 }
 
 run "valid_defaults" {
@@ -107,38 +114,6 @@ run "rejects_bad_secret_access_key" {
   expect_failures = [var.node_driver_secret_access_key]
 }
 
-run "rejects_vpc_cidr_in_pod_range" {
-  command = plan
-  variables {
-    vpc_cidr = "10.42.128.0/24"
-  }
-  expect_failures = [var.vpc_cidr]
-}
-
-run "rejects_vpc_cidr_covering_service_range" {
-  command = plan
-  variables {
-    vpc_cidr = "10.43.0.0/16"
-  }
-  expect_failures = [var.vpc_cidr]
-}
-
-run "rejects_too_large_vpc" {
-  command = plan
-  variables {
-    vpc_cidr = "10.0.0.0/8"
-  }
-  expect_failures = [var.vpc_cidr]
-}
-
-run "rejects_too_many_azs" {
-  command = plan
-  variables {
-    availability_zones = ["eu-central-1a", "eu-central-1b", "eu-central-1c", "eu-central-1d", "eu-central-1e"]
-  }
-  expect_failures = [var.availability_zones]
-}
-
 run "rejects_bad_ami" {
   command = plan
   variables {
@@ -169,4 +144,28 @@ run "rejects_bad_instance_type" {
     worker_instance_type = "large"
   }
   expect_failures = [var.worker_instance_type]
+}
+
+run "rejects_foreign_vpc_id" {
+  command = plan
+  variables {
+    mgmt_vpc_id = "10.100.0.0/16"
+  }
+  expect_failures = [var.mgmt_vpc_id]
+}
+
+run "rejects_empty_subnet_map" {
+  command = plan
+  variables {
+    mgmt_private_subnet_ids = {}
+  }
+  expect_failures = [var.mgmt_private_subnet_ids]
+}
+
+run "rejects_non_subnet_ids" {
+  command = plan
+  variables {
+    mgmt_private_subnet_ids = { "eu-central-1a" = "10.100.0.0/19" }
+  }
+  expect_failures = [var.mgmt_private_subnet_ids]
 }

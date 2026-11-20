@@ -45,8 +45,8 @@ resource "rancher2_machine_config_v2" "pool" {
   amazonec2_config {
     ami                     = var.ami_id
     region                  = local.region
-    vpc_id                  = aws_vpc.this.id
-    subnet_id               = aws_subnet.private[each.value.az].id
+    vpc_id                  = var.mgmt_vpc_id
+    subnet_id               = data.aws_subnet.node[each.value.az].id
     zone                    = substr(each.value.az, length(each.value.az) - 1, 1)
     instance_type           = each.value.instance_type
     security_group          = [aws_security_group.nodes.name]
@@ -106,11 +106,8 @@ resource "rancher2_cluster_v2" "this" {
     delete = "45m"
   }
 
-  # Nodes need NAT egress to reach Rancher at first boot. On destroy this
-  # keeps routes and security rules until the cluster is gone.
+  # Rules exist before the first node boots and outlive the last one.
   depends_on = [
-    aws_route.private_nat,
-    aws_route_table_association.private,
     aws_vpc_security_group_ingress_rule.nodes_self,
     aws_vpc_security_group_egress_rule.nodes_all,
   ]

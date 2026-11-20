@@ -87,6 +87,7 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 | [aws_vpc_security_group_egress_rule.nodes_all](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.etcd](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.lb_clients](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.lb_internal_from_nodes](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.lb_public_from_nat](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nodes_from_lb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nodes_self](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
@@ -151,5 +152,7 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 | <a name="output_kubeconfig_secret_arn"></a> [kubeconfig\_secret\_arn](#output\_kubeconfig\_secret\_arn) | ARN of the admin kubeconfig secret (informational). |
 | <a name="output_kubeconfig_secret_name"></a> [kubeconfig\_secret\_name](#output\_kubeconfig\_secret\_name) | Name of the AWS Secrets Manager secret holding the admin kubeconfig. Consumed by the `rancher` building block. |
 | <a name="output_lb_dns_name"></a> [lb\_dns\_name](#output\_lb\_dns\_name) | DNS name of the client-facing NLB (public, or internal if public\_load\_balancer = false). Point the Rancher DNS record (CNAME or Route 53 alias) here. |
+| <a name="output_private_subnet_ids"></a> [private\_subnet\_ids](#output\_private\_subnet\_ids) | Private subnet ID per availability zone (map). Downstream clusters place their nodes here (ADR-015); passed on by the `rancher` building block. |
 | <a name="output_summary"></a> [summary](#output\_summary) | Markdown summary shown in meshStack after apply. |
+| <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | ID of the cluster VPC. Downstream clusters place their nodes here (ADR-015); passed on by the `rancher` building block. |
 <!-- END_TF_DOCS -->

@@ -37,4 +37,5 @@ None of them is secret (ADR-012).
 | `kubeconfig_secret_arn` | None |
 | `api_server_url` | Resource URL |
 | `lb_dns_name` | None |
+| `vpc_id`, `private_subnet_ids` | None (consumed by `rancher`, passed on to `downstream-cluster`) |
 | `summary` | Summary |

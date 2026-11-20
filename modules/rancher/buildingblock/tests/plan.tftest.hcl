@@ -304,3 +304,17 @@ run "backup_encryption_immediate_delete" {
     error_message = "backup_encryption_recovery_window_days must reach the secret."
   }
 }
+
+run "management_network_pass_through" {
+  command = plan
+
+  variables {
+    mgmt_vpc_id             = "vpc-0123456789abcdef0"
+    mgmt_private_subnet_ids = { "eu-central-1a" = "subnet-0123456789abcdef0", "eu-central-1b" = "subnet-0123456789abcdef1" }
+  }
+
+  assert {
+    condition     = output.mgmt_vpc_id == "vpc-0123456789abcdef0" && output.mgmt_private_subnet_ids["eu-central-1b"] == "subnet-0123456789abcdef1"
+    error_message = "The management VPC and subnets must be passed on unchanged."
+  }
+}

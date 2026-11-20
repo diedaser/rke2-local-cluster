@@ -17,6 +17,18 @@ output "admin_secret_arn" {
   value       = aws_secretsmanager_secret.admin.arn
 }
 
+# Pass-through for downstream-cluster (meshStack maps only direct-parent
+# outputs, ADR-015). Not secret.
+output "mgmt_vpc_id" {
+  description = "VPC of the management cluster, where downstream clusters place their nodes."
+  value       = var.mgmt_vpc_id
+}
+
+output "mgmt_private_subnet_ids" {
+  description = "Private subnet ID per AZ of the management cluster, for downstream nodes."
+  value       = var.mgmt_private_subnet_ids
+}
+
 output "downstream_credentials_secret_name" {
   description = "Name of the Secrets Manager secret holding the Rancher login (url, username, password) of the downstream-cluster building block (ADR-015). Consumed by `downstream-cluster`."
   value       = aws_secretsmanager_secret.downstream.name

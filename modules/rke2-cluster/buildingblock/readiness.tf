@@ -22,6 +22,7 @@ data "http" "api_readyz" {
     aws_lb_listener.this,
     aws_lb_target_group_attachment.this,
     aws_vpc_security_group_ingress_rule.lb_clients,
+    aws_vpc_security_group_ingress_rule.lb_internal_from_nodes,
   ]
 
   lifecycle {

@@ -120,8 +120,12 @@ module "rancher" {
   kubeconfig_secret_name = module.rke2_cluster.kubeconfig_secret_name
   api_server_url         = module.rke2_cluster.api_server_url
   backup_bucket_name     = module.rke2_cluster.backup_bucket_name
-  rancher_hostname       = coalesce(var.rancher_hostname, module.rke2_cluster.lb_dns_name)
-  replicas               = tonumber(var.server_count)
+
+  # Passed on to downstream clusters, which place their nodes here (ADR-015).
+  mgmt_vpc_id             = module.rke2_cluster.vpc_id
+  mgmt_private_subnet_ids = module.rke2_cluster.private_subnet_ids
+  rancher_hostname        = coalesce(var.rancher_hostname, module.rke2_cluster.lb_dns_name)
+  replicas                = tonumber(var.server_count)
 
   # The backups die with the bucket (backup_force_destroy above), so their key
   # is worthless afterwards. 0 also lets a rebuild reuse the fixed secret name
@@ -152,6 +156,16 @@ output "backup_bucket_name" {
 output "downstream_credentials_secret_name" {
   description = "Rancher login of meshstack-downstream, for downstream/ (TF_VAR_downstream_credentials_secret_name)."
   value       = module.rancher.downstream_credentials_secret_name
+}
+
+output "mgmt_vpc_id" {
+  description = "Management VPC, for downstream/ (TF_VAR_mgmt_vpc_id)."
+  value       = module.rancher.mgmt_vpc_id
+}
+
+output "mgmt_private_subnet_ids" {
+  description = "Management private subnets per AZ, for downstream/ (TF_VAR_mgmt_private_subnet_ids, JSON)."
+  value       = module.rancher.mgmt_private_subnet_ids
 }
 
 output "summary" {

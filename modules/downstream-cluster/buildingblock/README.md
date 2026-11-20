@@ -1,9 +1,10 @@
 # `downstream-cluster` building block
 
 Creates an RKE2 workload cluster on AWS EC2, provisioned and managed by the
-Rancher instance of the parent `rancher` building block (ADR-015). Builds the
-cluster's own VPC (private nodes, NAT, no peering) and a node security group;
-Rancher creates the instances with the Amazon EC2 node driver. Logs in to
+Rancher instance of the parent `rancher` building block (ADR-015). Places the
+nodes in the management cluster's VPC and private subnets with their own
+isolated security group; Rancher creates the instances with the Amazon EC2 node
+driver. Logs in to
 Rancher as the least-privilege user `meshstack-downstream` whose login the
 parent stored in Secrets Manager.
 
@@ -45,29 +46,16 @@ terraform-docs -c .terraform-docs.yml modules/downstream-cluster/buildingblock
 
 | Name | Type |
 |------|------|
-| [aws_default_security_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/default_security_group) | resource |
-| [aws_eip.nat](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eip) | resource |
-| [aws_internet_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/internet_gateway) | resource |
-| [aws_nat_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/nat_gateway) | resource |
-| [aws_route.private_nat](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
-| [aws_route.public_internet](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route) | resource |
-| [aws_route_table.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
-| [aws_route_table.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
-| [aws_route_table_association.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
-| [aws_route_table_association.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
 | [aws_security_group.nodes](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
-| [aws_subnet.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
-| [aws_subnet.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) | resource |
-| [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc) | resource |
 | [aws_vpc_security_group_egress_rule.nodes_all](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nodes_self](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [rancher2_cloud_credential.this](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/cloud_credential) | resource |
 | [rancher2_cluster_v2.this](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/cluster_v2) | resource |
 | [rancher2_machine_config_v2.pool](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/machine_config_v2) | resource |
-| [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 | [aws_secretsmanager_secret_version.rancher_login](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secret_version) | data source |
+| [aws_subnet.node](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet) | data source |
 | [http_http.rancher_login](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 
 ## Inputs
@@ -79,19 +67,19 @@ terraform-docs -c .terraform-docs.yml modules/downstream-cluster/buildingblock
 | <a name="input_building_block_uuid"></a> [building\_block\_uuid](#input\_building\_block\_uuid) | meshStack building block UUID (source: Building Block UUID). Makes resource and Rancher cluster names unique. | `string` | n/a | yes |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Cluster name. The Rancher cluster is named <cluster\_name>-<short building block id>. | `string` | n/a | yes |
 | <a name="input_downstream_credentials_secret_name"></a> [downstream\_credentials\_secret\_name](#input\_downstream\_credentials\_secret\_name) | Name of the Secrets Manager secret with the Rancher login of meshstack-downstream (source: Parent Building Block Output `downstream_credentials_secret_name`). | `string` | n/a | yes |
+| <a name="input_mgmt_private_subnet_ids"></a> [mgmt\_private\_subnet\_ids](#input\_mgmt\_private\_subnet\_ids) | Private subnet ID per AZ of the management cluster (source: Parent Building Block Output `mgmt_private_subnet_ids` of rancher). One machine pool per role and AZ. | `map(string)` | n/a | yes |
+| <a name="input_mgmt_vpc_id"></a> [mgmt\_vpc\_id](#input\_mgmt\_vpc\_id) | VPC of the management cluster, where the nodes are placed (source: Parent Building Block Output `mgmt_vpc_id` of rancher). | `string` | n/a | yes |
 | <a name="input_node_driver_access_key_id"></a> [node\_driver\_access\_key\_id](#input\_node\_driver\_access\_key\_id) | Access key ID of the backplane node-driver IAM user (backplane output node\_driver\_access\_key\_id). Becomes the Rancher cloud credential. | `string` | n/a | yes |
 | <a name="input_node_driver_secret_access_key"></a> [node\_driver\_secret\_access\_key](#input\_node\_driver\_secret\_access\_key) | Secret access key of the backplane node-driver IAM user (backplane output node\_driver\_secret\_access\_key). | `string` | n/a | yes |
 | <a name="input_project_identifier"></a> [project\_identifier](#input\_project\_identifier) | meshStack project identifier (source: Project Identifier). | `string` | n/a | yes |
 | <a name="input_state_encryption_passphrase"></a> [state\_encryption\_passphrase](#input\_state\_encryption\_passphrase) | Passphrase for OpenTofu state encryption (ADR-004). Provided as environment variable TF\_VAR\_state\_encryption\_passphrase. | `string` | n/a | yes |
 | <a name="input_workspace_identifier"></a> [workspace\_identifier](#input\_workspace\_identifier) | meshStack workspace identifier (source: Workspace Identifier). | `string` | n/a | yes |
-| <a name="input_availability_zones"></a> [availability\_zones](#input\_availability\_zones) | Availability zones for the nodes (max. 4). Empty uses the first 3 zones of the region. | `list(string)` | `[]` | no |
 | <a name="input_control_plane_count"></a> [control\_plane\_count](#input\_control\_plane\_count) | Number of control-plane + etcd nodes: 1 (dev), 3 or 5. String because meshStack offers it as a single select. | `string` | `"3"` | no |
 | <a name="input_control_plane_instance_type"></a> [control\_plane\_instance\_type](#input\_control\_plane\_instance\_type) | EC2 instance type of the control-plane + etcd nodes (amd64, matching the AMI). | `string` | `"m7i.xlarge"` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Optional customer managed KMS key ARN for the nodes' EBS volumes. Must be the backplane's kms\_key\_arn, which grants the node-driver user. Null uses aws/ebs. | `string` | `null` | no |
 | <a name="input_kubernetes_version"></a> [kubernetes\_version](#input\_kubernetes\_version) | RKE2 version of the downstream cluster. Must be offered by the running Rancher (KDM) and stay within the Rancher support matrix (ADR-009). | `string` | `"v1.36.5+rke2r1"` | no |
 | <a name="input_rancher_insecure"></a> [rancher\_insecure](#input\_rancher\_insecure) | Skip TLS verification of the Rancher API. true for Rancher-generated or not yet issued certificates (tls\_source rancher/letsEncrypt of the rancher building block); set false with a publicly trusted certificate. | `bool` | `true` | no |
 | <a name="input_root_volume_size_gb"></a> [root\_volume\_size\_gb](#input\_root\_volume\_size\_gb) | gp3 root volume size per node in GiB. | `number` | `100` | no |
-| <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR of the cluster's own VPC (/16 to /24). Not peered, so overlaps with other VPCs are harmless; it must not overlap the RKE2 pod and service CIDRs. | `string` | `"10.110.0.0/16"` | no |
 | <a name="input_worker_count"></a> [worker\_count](#input\_worker\_count) | Number of worker nodes. | `number` | `2` | no |
 | <a name="input_worker_instance_type"></a> [worker\_instance\_type](#input\_worker\_instance\_type) | EC2 instance type of the worker nodes (amd64, matching the AMI). | `string` | `"m7i.large"` | no |
 
@@ -100,7 +88,6 @@ terraform-docs -c .terraform-docs.yml modules/downstream-cluster/buildingblock
 | Name | Description |
 |------|-------------|
 | <a name="output_cluster_name"></a> [cluster\_name](#output\_cluster\_name) | Name of the cluster in Rancher (<cluster\_name>-<short building block id>). |
-| <a name="output_nat_public_ip"></a> [nat\_public\_ip](#output\_nat\_public\_ip) | Public IP all nodes use to reach Rancher. Add it to the rke2-cluster ingress\_allowed\_cidrs if that allow list is restricted. |
 | <a name="output_rancher_cluster_id"></a> [rancher\_cluster\_id](#output\_rancher\_cluster\_id) | Rancher (management v3) cluster ID, for example c-m-abcd1234. |
 | <a name="output_rancher_cluster_url"></a> [rancher\_cluster\_url](#output\_rancher\_cluster\_url) | Cluster explorer in the Rancher UI. |
 | <a name="output_summary"></a> [summary](#output\_summary) | Markdown summary shown in meshStack after apply. |

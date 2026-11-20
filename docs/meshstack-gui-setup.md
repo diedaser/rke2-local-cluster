@@ -162,6 +162,8 @@ Create each output with **Add Output**. The name must match the OpenTofu output.
 | `kubeconfig_secret_arn` | String | None |
 | `api_server_url` | String | Resource URL |
 | `lb_dns_name` | String | None |
+| `vpc_id` | String | None |
+| `private_subnet_ids` | Code | None |
 | `backup_bucket_name` | String | None |
 | `summary` | String | Summary |
 
@@ -227,6 +229,8 @@ Add **`RKE2 Cluster (Rancher management)`** as a dependency. This guarantees the
 | `project_identifier` | Project Identifier | String | Variable | no | |
 | `building_block_uuid` | Building Block UUID | String | Variable | no | |
 | `kubeconfig_secret_name` | **Parent Building Block Output** | String | Variable | no | select parent output `kubeconfig_secret_name` (ADR-012) |
+| `mgmt_vpc_id` | **Parent Building Block Output** | String | Variable | no | select parent output `vpc_id`. Only passed on to `downstream-cluster`; optional |
+| `mgmt_private_subnet_ids` | **Parent Building Block Output** | Code | Variable | no | select parent output `private_subnet_ids` (JSON map AZ → subnet ID). Only passed on; optional |
 | `api_server_url` | **Parent Building Block Output** | String | Variable | no | select parent output `api_server_url` |
 | `backup_bucket_name` | **Parent Building Block Output** | String | Variable | no | select parent output `backup_bucket_name` (ADR-014). Parents created before ADR-014 must be upgraded first, or the output does not exist |
 | `rancher_version` | Static | String | Variable | no | optional, default `2.15.2`. Chart version **without** `v`; the `rancher2` provider pin must match its minor |
@@ -255,6 +259,8 @@ The conditions on `letsencrypt_email` and the two PEM inputs hide the fields unl
 | `admin_secret_name` | String | None |
 | `admin_secret_arn` | String | None |
 | `downstream_credentials_secret_name` | String | None |
+| `mgmt_vpc_id` | String | None |
+| `mgmt_private_subnet_ids` | Code | None |
 | `backup_encryption_secret_name` | String | None |
 | `summary` | String | Summary |
 
@@ -272,7 +278,7 @@ Prerequisites:
 
 - The backplane creates the node-driver IAM user `<iam_user_name>-node-driver` (path `/rke2-node-driver/`, implemented in `modules/rke2-cluster/backplane/node-driver.tf`). Re-run the backplane and read `tofu output -raw node_driver_access_key_id` and `tofu output -raw node_driver_secret_access_key`. They are Terraform **variables** of this definition, not environment variables, unlike the runner key.
 - The `rancher` building block outputs `downstream_credentials_secret_name` (implemented). Existing `rancher` instances must be upgraded to that version first.
-- No change to `rke2-cluster`: downstream nodes reach Rancher outbound on 443, and Rancher never connects to them (no VPC peering, ADR-015). If `ingress_allowed_cidrs` of `rke2-cluster` is restricted, add each downstream cluster's `nat_public_ip` output to it.
+- The nodes go into the management VPC (ADR-015). `rke2-cluster` outputs `vpc_id` and `private_subnet_ids`, and the `rancher` definition must map them (§2.4) so it can pass them on as `mgmt_vpc_id` and `mgmt_private_subnet_ids`. Upgrade `rke2-cluster` instances, then `rancher` instances, before adding a downstream cluster.
 
 Start a new wizard as in section 1. Only the differences are listed here.
 
@@ -320,9 +326,9 @@ Add **`Rancher Manager`** as the only dependency. Its outputs become available t
 | `worker_count` | User Input | Integer | Variable | no | default `2`, ≥ 1 |
 | `control_plane_instance_type`, `worker_instance_type` | User Input | Single Select | Variable | no | amd64 types, for example `m7i.large`, `m7i.xlarge`. **optional** (module defaults `m7i.xlarge` / `m7i.large`) |
 | `ami_id` | Static | String | Variable | no | Ubuntu 24.04 amd64, as in 1.5 |
-| `vpc_cidr` | Static | String | Variable | no | default `10.110.0.0/16`. Not peered, so overlaps with other VPCs are harmless; must not overlap 10.42.0.0/16 or 10.43.0.0/16 (pod and service CIDRs) |
+| `mgmt_vpc_id` | **Parent Building Block Output** | String | Variable | no | select parent output `mgmt_vpc_id` |
+| `mgmt_private_subnet_ids` | **Parent Building Block Output** | Code | Variable | no | select parent output `mgmt_private_subnet_ids`; one machine pool per role and AZ |
 | `kms_key_arn` | Static | String | Variable | no | optional, EBS encryption of the nodes. Must be the backplane's `kms_key_arn`, which grants the node-driver user the KMS actions |
-| `availability_zones` | Static | Code | Variable | no | optional, max. 4. Default: first 3 zones of the region. One machine pool per role and zone |
 | `root_volume_size_gb` | Static | Integer | Variable | no | optional, default `100` (40 to 16384), gp3 |
 
 ### 3.5 Outputs
@@ -332,7 +338,6 @@ Add **`Rancher Manager`** as the only dependency. Its outputs become available t
 | `cluster_name` | String | None |
 | `rancher_cluster_id` | String | None |
 | `rancher_cluster_url` | String | Resource URL |
-| `nat_public_ip` | String | None |
 | `summary` | String | Summary |
 
 No kubeconfig output (ADR-012). Users download theirs from the Rancher UI, tied to their own Rancher identity.

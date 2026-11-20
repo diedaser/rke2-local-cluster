@@ -32,6 +32,16 @@ output "lb_dns_name" {
   value       = local.client_lb_dns
 }
 
+output "vpc_id" {
+  description = "ID of the cluster VPC. Downstream clusters place their nodes here (ADR-015); passed on by the `rancher` building block."
+  value       = aws_vpc.this.id
+}
+
+output "private_subnet_ids" {
+  description = "Private subnet ID per availability zone (map). Downstream clusters place their nodes here (ADR-015); passed on by the `rancher` building block."
+  value       = { for az, s in aws_subnet.private : az => s.id }
+}
+
 output "backup_bucket_name" {
   description = "S3 bucket for etcd snapshots (prefix etcd/) and Rancher backups (prefix rancher/). Consumed by the `rancher` building block."
   value       = aws_s3_bucket.backup.bucket

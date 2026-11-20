@@ -24,6 +24,7 @@ the definition changes (CONTRIBUTING.md rule 13).
 | `workspace_identifier`, `project_identifier`, `building_block_uuid` | meshStack identifiers | Variable | no |
 | `kubeconfig_secret_name` | Parent Building Block Output | Variable | no |
 | `backup_bucket_name` | Parent Building Block Output | Variable | no |
+| `mgmt_vpc_id`, `mgmt_private_subnet_ids` | Parent Building Block Output (`vpc_id`, `private_subnet_ids`), optional; passed on to `downstream-cluster` | Variable | no |
 | `api_server_url` | Parent Building Block Output | Variable | no |
 | `rancher_hostname`, `tls_source` | User Input | Variable | no |
 | `letsencrypt_email` | User Input, condition `tls_source == "letsEncrypt"` | Variable | no |
@@ -41,5 +42,6 @@ None of them is secret (ADR-012).
 | `admin_secret_name` | None |
 | `admin_secret_arn` | None |
 | `downstream_credentials_secret_name` | None |
+| `mgmt_vpc_id`, `mgmt_private_subnet_ids` | None |
 | `backup_encryption_secret_name` | None |
 | `summary` | Summary |

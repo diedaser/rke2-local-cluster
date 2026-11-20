@@ -19,12 +19,15 @@ locals {
   agent_ids  = module.agents.ids
   node_count = local.server_count + var.agent_count
 
-  # Allow lists per listener. The VPC CIDR keeps the internal listeners
-  # reachable for the nodes.
+  # Allow lists per listener. The internal API and supervisor listeners admit
+  # the management nodes by security group (lb_internal_from_nodes), not the
+  # VPC CIDR: downstream clusters share this VPC (ADR-015) and must not reach
+  # the management API or the node-join endpoint. Without a public NLB, the
+  # API listener also admits the API client CIDRs.
   listeners = merge(
     {
-      "int-api" = { lb = "internal", port = 6443, servers_only = true, cidrs = distinct(concat([var.vpc_cidr], var.public_load_balancer ? [] : local.api_client_cidrs)) }
-      "int-sup" = { lb = "internal", port = 9345, servers_only = true, cidrs = [var.vpc_cidr] }
+      "int-api" = { lb = "internal", port = 6443, servers_only = true, cidrs = var.public_load_balancer ? [] : local.api_client_cidrs }
+      "int-sup" = { lb = "internal", port = 9345, servers_only = true, cidrs = [] }
     },
     {
       for name, port in { api = 6443, http = 80, https = 443 } :
@@ -77,6 +80,20 @@ resource "aws_vpc_security_group_ingress_rule" "lb_clients" {
   ip_protocol       = "tcp"
   from_port         = each.value.port
   to_port           = each.value.port
+}
+
+# Nodes reach the API and register through the internal NLB. Source is the
+# node security group (target groups do not preserve client IPs, so the NLB
+# sees the node's own ENI, also for hairpin traffic).
+resource "aws_vpc_security_group_ingress_rule" "lb_internal_from_nodes" {
+  for_each = { api = 6443, supervisor = 9345 }
+
+  security_group_id            = aws_security_group.lb["internal"].id
+  description                  = "Port ${each.value} from the management nodes"
+  referenced_security_group_id = aws_security_group.nodes.id
+  ip_protocol                  = "tcp"
+  from_port                    = each.value
+  to_port                      = each.value
 }
 
 # Pods reach the public hostname (Rancher URL) through NAT. Keep that path

@@ -19,11 +19,6 @@ output "rancher_cluster_url" {
   value       = "${local.rancher_url}/dashboard/c/${rancher2_cluster_v2.this.cluster_v1_id}/explorer"
 }
 
-output "nat_public_ip" {
-  description = "Public IP all nodes use to reach Rancher. Add it to the rke2-cluster ingress_allowed_cidrs if that allow list is restricted."
-  value       = aws_eip.nat.public_ip
-}
-
 output "summary" {
   description = "Markdown summary shown in meshStack after apply."
   value = templatefile("${path.module}/templates/summary.md.tftpl", {
@@ -31,7 +26,6 @@ output "summary" {
     rancher_cluster_url = "${local.rancher_url}/dashboard/c/${rancher2_cluster_v2.this.cluster_v1_id}/explorer"
     kubernetes_version  = var.kubernetes_version
     pools               = local.pools
-    nat_public_ip       = aws_eip.nat.public_ip
     region              = local.region
   })
 }

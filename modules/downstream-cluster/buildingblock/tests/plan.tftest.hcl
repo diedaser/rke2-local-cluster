@@ -2,6 +2,12 @@
 # Never touches AWS or Rancher.
 
 mock_provider "aws" {
+  # All management private subnets live in the management VPC.
+  mock_data "aws_subnet" {
+    defaults = {
+      vpc_id = "vpc-0123456789abcdef0"
+    }
+  }
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"
@@ -12,20 +18,10 @@ mock_provider "aws" {
       region = "eu-central-1"
     }
   }
-  mock_data "aws_availability_zones" {
-    defaults = {
-      names = ["eu-central-1c", "eu-central-1a", "eu-central-1b"]
-    }
-  }
   mock_data "aws_secretsmanager_secret_version" {
     defaults = {
       # Test-only login, no real credentials.
       secret_string = "{\"url\":\"https://rancher.example.com/\",\"username\":\"meshstack-downstream\",\"password\":\"test-password-not-secret\"}"
-    }
-  }
-  mock_resource "aws_eip" {
-    defaults = {
-      public_ip = "203.0.113.70"
     }
   }
 }
@@ -68,6 +64,12 @@ variables {
   node_driver_secret_access_key      = "test-secret-key-not-secret-0123456789012"
   ami_id                             = "ami-0123456789abcdef0"
   cluster_name                       = "apps"
+  mgmt_vpc_id                        = "vpc-0123456789abcdef0"
+  mgmt_private_subnet_ids = {
+    "eu-central-1c" = "subnet-0000000000000000c"
+    "eu-central-1a" = "subnet-0000000000000000a"
+    "eu-central-1b" = "subnet-0000000000000000b"
+  }
 }
 
 run "default_cluster" {
@@ -116,9 +118,10 @@ run "default_cluster" {
   assert {
     condition = (
       rancher2_machine_config_v2.pool["control-plane-eu-central-1c"].amazonec2_config[0].zone == "c" &&
-      rancher2_machine_config_v2.pool["control-plane-eu-central-1c"].amazonec2_config[0].subnet_id == aws_subnet.private["eu-central-1c"].id
+      rancher2_machine_config_v2.pool["control-plane-eu-central-1c"].amazonec2_config[0].subnet_id == "subnet-0000000000000000c" &&
+      alltrue([for k, m in rancher2_machine_config_v2.pool : m.amazonec2_config[0].vpc_id == "vpc-0123456789abcdef0"])
     )
-    error_message = "Each pool must use the zone letter and the private subnet of its AZ."
+    error_message = "Each pool must use the zone letter and the management private subnet of its AZ."
   }
 
   assert {
@@ -161,8 +164,8 @@ run "default_cluster" {
   }
 
   assert {
-    condition     = output.nat_public_ip == "203.0.113.70" && output.rancher_cluster_id == "c-m-abcd1234"
-    error_message = "NAT IP and cluster ID must be output."
+    condition     = output.rancher_cluster_id == "c-m-abcd1234" && aws_security_group.nodes.vpc_id == "vpc-0123456789abcdef0"
+    error_message = "The cluster ID must be output and the node security group must live in the management VPC."
   }
 
   assert {
@@ -180,7 +183,10 @@ run "five_control_plane_nodes_in_two_azs" {
   variables {
     control_plane_count = "5"
     worker_count        = 1
-    availability_zones  = ["eu-central-1a", "eu-central-1b"]
+    mgmt_private_subnet_ids = {
+      "eu-central-1a" = "subnet-0000000000000000a"
+      "eu-central-1b" = "subnet-0000000000000000b"
+    }
   }
 
   assert {
@@ -214,7 +220,7 @@ run "rejects_foreign_account_credentials" {
     aws_account_id = "210987654321"
   }
 
-  expect_failures = [data.http.rancher_login, aws_vpc.this]
+  expect_failures = [data.http.rancher_login, aws_security_group.nodes]
 }
 
 run "rejects_failed_login" {
@@ -229,4 +235,15 @@ run "rejects_failed_login" {
   }
 
   expect_failures = [data.http.rancher_login]
+}
+
+run "rejects_subnet_from_another_vpc" {
+  command = plan
+
+  override_data {
+    target = data.aws_subnet.node
+    values = { vpc_id = "vpc-0fedcba9876543210" }
+  }
+
+  expect_failures = [data.aws_subnet.node]
 }

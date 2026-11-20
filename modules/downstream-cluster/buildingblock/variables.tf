@@ -66,6 +66,28 @@ variable "downstream_credentials_secret_name" {
   }
 }
 
+variable "mgmt_vpc_id" {
+  description = "VPC of the management cluster, where the nodes are placed (source: Parent Building Block Output `mgmt_vpc_id` of rancher)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^vpc-[0-9a-f]{8,17}$", var.mgmt_vpc_id))
+    error_message = "mgmt_vpc_id must be the mgmt_vpc_id output of the rancher building block (map rke2-cluster vpc_id into rancher first)."
+  }
+}
+
+variable "mgmt_private_subnet_ids" {
+  description = "Private subnet ID per AZ of the management cluster (source: Parent Building Block Output `mgmt_private_subnet_ids` of rancher). One machine pool per role and AZ."
+  type        = map(string)
+
+  validation {
+    condition = length(var.mgmt_private_subnet_ids) >= 1 && length(var.mgmt_private_subnet_ids) <= 4 && alltrue([
+      for id in values(var.mgmt_private_subnet_ids) : can(regex("^subnet-[0-9a-f]{8,17}$", id))
+    ])
+    error_message = "mgmt_private_subnet_ids must be the mgmt_private_subnet_ids output of the rancher building block: 1 to 4 subnet IDs keyed by AZ."
+  }
+}
+
 # --- Platform-controlled inputs ------------------------------------------------
 
 variable "node_driver_access_key_id" {
@@ -115,36 +137,6 @@ variable "ami_id" {
   validation {
     condition     = can(regex("^ami-[0-9a-f]{8,17}$", var.ami_id))
     error_message = "ami_id must be an AMI ID such as ami-0123456789abcdef0."
-  }
-}
-
-variable "vpc_cidr" {
-  description = "CIDR of the cluster's own VPC (/16 to /24). Not peered, so overlaps with other VPCs are harmless; it must not overlap the RKE2 pod and service CIDRs."
-  type        = string
-  default     = "10.110.0.0/16"
-
-  validation {
-    # Same integer range check as rke2-cluster: outside 10.42.0.0 - 10.43.255.255.
-    condition = can(cidrhost(var.vpc_cidr, 0)) && try(
-      tonumber(split("/", var.vpc_cidr)[1]) >= 16 && tonumber(split("/", var.vpc_cidr)[1]) <= 24 && alltrue([
-        for o in [[for x in split(".", cidrhost(var.vpc_cidr, 0)) : tonumber(x)]] :
-        o[0] * 16777216 + o[1] * 65536 + o[2] * 256 + o[3] > 170655743 ||
-        o[0] * 16777216 + o[1] * 65536 + o[2] * 256 + o[3] + pow(2, 32 - tonumber(split("/", var.vpc_cidr)[1])) <= 170524672
-      ]),
-      false,
-    )
-    error_message = "vpc_cidr must be a valid /16 to /24 CIDR outside 10.42.0.0/16 and 10.43.0.0/16."
-  }
-}
-
-variable "availability_zones" {
-  description = "Availability zones for the nodes (max. 4). Empty uses the first 3 zones of the region."
-  type        = list(string)
-  default     = []
-
-  validation {
-    condition     = length(var.availability_zones) <= 4
-    error_message = "availability_zones takes at most 4 zones."
   }
 }
 

@@ -24,8 +24,8 @@ Enforced by the security groups in `modules/rke2-cluster/buildingblock/network.t
 
 | Port | Proto | Source | Purpose |
 |---|---|---|---|
-| 6443 | TCP | NLB SGs, nodes; on the client NLB: admin CIDRs, meshStack runner egress IPs, NAT EIP | Kubernetes API |
-| 9345 | TCP | internal NLB SG, nodes (VPC only, never public) | RKE2 supervisor / node registration |
+| 6443 | TCP | NLB SGs, nodes; on the internal NLB: management nodes SG only (no VPC CIDR, downstream clusters share the VPC, ADR-015); on the client NLB: admin CIDRs, meshStack runner egress IPs, NAT EIP | Kubernetes API |
+| 9345 | TCP | internal NLB SG, nodes; on the internal NLB: management nodes SG only (never public, never the VPC CIDR) | RKE2 supervisor / node registration |
 | 10250 | TCP | nodes | kubelet |
 | 2379-2381 | TCP | server nodes | etcd client, peer, metrics |
 | 8472 | UDP | nodes | Canal/Flannel VXLAN |

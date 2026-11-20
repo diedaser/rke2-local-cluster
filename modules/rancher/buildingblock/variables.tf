@@ -65,6 +65,28 @@ variable "backup_bucket_name" {
   }
 }
 
+variable "mgmt_vpc_id" {
+  description = "VPC of the management cluster (source: Parent Building Block Output `vpc_id`). Only passed on to downstream-cluster building blocks (ADR-015); null when not mapped."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.mgmt_vpc_id == null || can(regex("^vpc-[0-9a-f]{8,17}$", var.mgmt_vpc_id))
+    error_message = "mgmt_vpc_id must be the vpc_id output of the rke2-cluster building block."
+  }
+}
+
+variable "mgmt_private_subnet_ids" {
+  description = "Private subnet ID per AZ of the management cluster (source: Parent Building Block Output `private_subnet_ids`). Only passed on to downstream-cluster building blocks (ADR-015)."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for id in values(var.mgmt_private_subnet_ids) : can(regex("^subnet-[0-9a-f]{8,17}$", id))])
+    error_message = "mgmt_private_subnet_ids must be the private_subnet_ids output of the rke2-cluster building block."
+  }
+}
+
 variable "api_server_url" {
   description = "Kubernetes API URL (source: Parent Building Block Output `api_server_url`). Polled for readiness before any Kubernetes resource."
   type        = string

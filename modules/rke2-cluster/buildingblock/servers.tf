@@ -57,6 +57,7 @@ module "server_init" {
     aws_vpc_security_group_ingress_rule.nodes_self,
     aws_vpc_security_group_ingress_rule.etcd,
     aws_vpc_security_group_egress_rule.nodes_all,
+    aws_vpc_security_group_ingress_rule.lb_internal_from_nodes,
   ]
 }
 
