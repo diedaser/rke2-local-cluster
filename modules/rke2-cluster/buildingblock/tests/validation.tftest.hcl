@@ -1,6 +1,17 @@
 # Input validation rules. Mocked providers: never touches real infrastructure.
 
 mock_provider "aws" {
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+    }
+  }
+  mock_resource "aws_s3_bucket" {
+    defaults = {
+      arn    = "arn:aws:s3:::rke2-backup-mock"
+      region = "eu-central-1"
+    }
+  }
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"
@@ -264,4 +275,12 @@ run "rejects_bad_snapshot_cron" {
     etcd_snapshot_schedule_cron = "hourly"
   }
   expect_failures = [var.etcd_snapshot_schedule_cron]
+}
+
+run "rejects_zero_etcd_retention" {
+  command = plan
+  variables {
+    etcd_snapshot_retention = 0
+  }
+  expect_failures = [var.etcd_snapshot_retention]
 }

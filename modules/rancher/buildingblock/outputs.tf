@@ -17,6 +17,11 @@ output "admin_secret_arn" {
   value       = aws_secretsmanager_secret.admin.arn
 }
 
+output "backup_encryption_secret_name" {
+  description = "Name of the Secrets Manager secret holding the EncryptionConfiguration needed to restore the Rancher backups."
+  value       = aws_secretsmanager_secret.backup_encryption.name
+}
+
 output "summary" {
   description = "Markdown summary shown in meshStack after apply."
   value = templatefile("${path.module}/templates/summary.md.tftpl", {
@@ -28,5 +33,9 @@ output "summary" {
     admin_secret_name    = aws_secretsmanager_secret.admin.name
     admin_secret_arn     = aws_secretsmanager_secret.admin.arn
     region               = aws_secretsmanager_secret.admin.region
+    backup_location      = "s3://${var.backup_bucket_name}/${local.backup_s3_folder}/"
+    backup_schedule      = var.rancher_backup_schedule
+    backup_retention     = var.rancher_backup_retention
+    backup_secret_name   = aws_secretsmanager_secret.backup_encryption.name
   })
 }

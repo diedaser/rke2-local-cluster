@@ -12,3 +12,8 @@ output "names" {
   description = "Instance names (Name tag), in index order."
   value       = local.names
 }
+
+output "iam_instance_profile" {
+  description = "IAM instance profile name applied to every node of the pool (null without one)."
+  value       = var.iam_instance_profile
+}

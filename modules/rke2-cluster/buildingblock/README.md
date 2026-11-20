@@ -52,6 +52,9 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 |------|------|
 | [aws_default_security_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/default_security_group) | resource |
 | [aws_eip.nat](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eip) | resource |
+| [aws_iam_instance_profile.server](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) | resource |
+| [aws_iam_role.server](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy.server_etcd_s3](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_internet_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/internet_gateway) | resource |
 | [aws_lb.internal](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb) | resource |
 | [aws_lb.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb) | resource |
@@ -66,6 +69,12 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 | [aws_route_table.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) | resource |
 | [aws_route_table_association.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
 | [aws_route_table_association.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) | resource |
+| [aws_s3_bucket.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket) | resource |
+| [aws_s3_bucket_lifecycle_configuration.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration) | resource |
+| [aws_s3_bucket_ownership_controls.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_ownership_controls) | resource |
+| [aws_s3_bucket_policy.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy) | resource |
+| [aws_s3_bucket_public_access_block.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_public_access_block) | resource |
+| [aws_s3_bucket_server_side_encryption_configuration.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_server_side_encryption_configuration) | resource |
 | [aws_secretsmanager_secret.kubeconfig](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret_version.kubeconfig](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_security_group.lb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
@@ -91,6 +100,9 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 | [tls_self_signed_cert.ca](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/self_signed_cert) | resource |
 | [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.backup_bucket](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.server_assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.server_etcd_s3](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [cloudinit_config.node](https://registry.terraform.io/providers/hashicorp/cloudinit/latest/docs/data-sources/config) | data source |
 | [http_http.api_readyz](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 
@@ -111,8 +123,9 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 | <a name="input_agent_instance_type"></a> [agent\_instance\_type](#input\_agent\_instance\_type) | EC2 instance type for agent nodes. Defaults to server\_instance\_type. | `string` | `null` | no |
 | <a name="input_api_extra_sans"></a> [api\_extra\_sans](#input\_api\_extra\_sans) | Additional DNS names or IPs for the API server certificate (for example a DNS name pointing at the NLB). The NLB DNS names are always included. | `list(string)` | `[]` | no |
 | <a name="input_availability_zones"></a> [availability\_zones](#input\_availability\_zones) | Optional availability zones (max. 4). Empty uses the first 3 zones of the region (sorted). Nodes are spread round-robin. | `list(string)` | `[]` | no |
-| <a name="input_etcd_snapshot_retention"></a> [etcd\_snapshot\_retention](#input\_etcd\_snapshot\_retention) | Number of etcd snapshots to keep per server. | `number` | `28` | no |
-| <a name="input_etcd_snapshot_schedule_cron"></a> [etcd\_snapshot\_schedule\_cron](#input\_etcd\_snapshot\_schedule\_cron) | Cron schedule for local etcd snapshots. | `string` | `"0 */6 * * *"` | no |
+| <a name="input_backup_force_destroy"></a> [backup\_force\_destroy](#input\_backup\_force\_destroy) | Delete the backup bucket including all etcd and Rancher backups when the building block is deleted. false keeps the backups after an accidental delete, but then the destroy fails until the bucket is emptied by hand. | `bool` | `false` | no |
+| <a name="input_etcd_snapshot_retention"></a> [etcd\_snapshot\_retention](#input\_etcd\_snapshot\_retention) | Number of etcd snapshots to keep per server, locally and in S3 (each server uploads its own). | `number` | `10` | no |
+| <a name="input_etcd_snapshot_schedule_cron"></a> [etcd\_snapshot\_schedule\_cron](#input\_etcd\_snapshot\_schedule\_cron) | Cron schedule for etcd snapshots (local and S3). | `string` | `"0 */6 * * *"` | no |
 | <a name="input_hardening_profile"></a> [hardening\_profile](#input\_hardening\_profile) | RKE2 hardening profile: `cis` (production) or `none` (dev). | `string` | `"cis"` | no |
 | <a name="input_ingress_allowed_cidrs"></a> [ingress\_allowed\_cidrs](#input\_ingress\_allowed\_cidrs) | CIDRs allowed to reach ingress (80/443, Rancher UI) on the client-facing load balancer. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_ingress_controller"></a> [ingress\_controller](#input\_ingress\_controller) | Ingress controller deployed by RKE2. Set explicitly because the RKE2 default changes across releases (ADR-008). Only traefik: ingress-nginx is retired upstream and removed in RKE2 v1.37. | `string` | `"traefik"` | no |
@@ -134,6 +147,7 @@ terraform-docs -c .terraform-docs.yml modules/rke2-cluster/buildingblock
 | Name | Description |
 |------|-------------|
 | <a name="output_api_server_url"></a> [api\_server\_url](#output\_api\_server\_url) | Kubernetes API URL through the client-facing load balancer. |
+| <a name="output_backup_bucket_name"></a> [backup\_bucket\_name](#output\_backup\_bucket\_name) | S3 bucket for etcd snapshots (prefix etcd/) and Rancher backups (prefix rancher/). Consumed by the `rancher` building block. |
 | <a name="output_kubeconfig_secret_arn"></a> [kubeconfig\_secret\_arn](#output\_kubeconfig\_secret\_arn) | ARN of the admin kubeconfig secret (informational). |
 | <a name="output_kubeconfig_secret_name"></a> [kubeconfig\_secret\_name](#output\_kubeconfig\_secret\_name) | Name of the AWS Secrets Manager secret holding the admin kubeconfig. Consumed by the `rancher` building block. |
 | <a name="output_lb_dns_name"></a> [lb\_dns\_name](#output\_lb\_dns\_name) | DNS name of the client-facing NLB (public, or internal if public\_load\_balancer = false). Point the Rancher DNS record (CNAME or Route 53 alias) here. |

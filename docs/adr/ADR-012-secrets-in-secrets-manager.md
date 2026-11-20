@@ -14,7 +14,7 @@ meshStack does not support sensitive outputs. Every mapped output is visible in 
 - Secrets Manager secrets are mutable. A renewed admin certificate writes a new secret version in place; no replacement, no window without a secret.
 - `recovery_window_in_days = 0`: destroying a building block deletes its secret immediately. The credentials are worthless without the cluster, and a recovery window would block re-creating the same name.
 - Optional `kms_key_arn` encrypts the secrets (and EBS volumes) with a customer managed key; default is `aws/secretsmanager`.
-- Building blocks have **no** Terraform `sensitive` outputs at all. `scripts/validate-all.sh` enforces this. Break-glass access uses `scripts/fetch-kubeconfig.sh` (and `scripts/fetch-rancher-admin.sh` for the Rancher admin credentials), which reads Secrets Manager with the `aws` CLI instead of a state output.
+- Building blocks have **no** Terraform `sensitive` outputs at all. `scripts/validate-all.sh` enforces this. The Rancher backup encryption config is escrowed the same way (`<prefix>-rancher-backup-encryption`, [ADR-014](ADR-014-backups-to-s3.md)). Break-glass access uses `scripts/fetch-kubeconfig.sh` (and `scripts/fetch-rancher-admin.sh` for the Rancher admin credentials), which reads Secrets Manager with the `aws` CLI instead of a state output.
 
 ## Consequences
 

@@ -52,9 +52,9 @@ variable "cluster_name" {
 }
 
 variable "server_count" {
-  description = "1 for dev, 3 for production-like tests."
+  description = "3 (default) for an HA etcd quorum like production, 1 for a cheaper smoke test."
   type        = string
-  default     = "1"
+  default     = "3"
 }
 
 variable "server_instance_type" {
@@ -100,6 +100,9 @@ module "rke2_cluster" {
   ami_id               = var.ami_id
   api_allowed_cidrs    = var.api_allowed_cidrs
   hardening_profile    = "none"
+
+  # Dev: the backups go with the cluster. Production keeps them (default false).
+  backup_force_destroy = true
 }
 
 module "rancher" {
@@ -113,6 +116,7 @@ module "rancher" {
 
   kubeconfig_secret_name = module.rke2_cluster.kubeconfig_secret_name
   api_server_url         = module.rke2_cluster.api_server_url
+  backup_bucket_name     = module.rke2_cluster.backup_bucket_name
   rancher_hostname       = coalesce(var.rancher_hostname, module.rke2_cluster.lb_dns_name)
   replicas               = tonumber(var.server_count)
 }
@@ -130,6 +134,11 @@ output "lb_dns_name" {
 output "rancher_url" {
   description = "Rancher UI."
   value       = module.rancher.rancher_url
+}
+
+output "backup_bucket_name" {
+  description = "S3 bucket with etcd snapshots (etcd/) and Rancher backups (rancher/)."
+  value       = module.rke2_cluster.backup_bucket_name
 }
 
 output "summary" {

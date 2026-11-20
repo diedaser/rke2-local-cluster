@@ -295,7 +295,7 @@ variable "availability_zones" {
 }
 
 variable "etcd_snapshot_schedule_cron" {
-  description = "Cron schedule for local etcd snapshots."
+  description = "Cron schedule for etcd snapshots (local and S3)."
   type        = string
   default     = "0 */6 * * *"
 
@@ -306,14 +306,20 @@ variable "etcd_snapshot_schedule_cron" {
 }
 
 variable "etcd_snapshot_retention" {
-  description = "Number of etcd snapshots to keep per server."
+  description = "Number of etcd snapshots to keep per server, locally and in S3 (each server uploads its own)."
   type        = number
-  default     = 28
+  default     = 10
 
   validation {
     condition     = var.etcd_snapshot_retention >= 1
     error_message = "etcd_snapshot_retention must be at least 1."
   }
+}
+
+variable "backup_force_destroy" {
+  description = "Delete the backup bucket including all etcd and Rancher backups when the building block is deleted. false keeps the backups after an accidental delete, but then the destroy fails until the bucket is emptied by hand."
+  type        = bool
+  default     = false
 }
 
 variable "rke2_install_script_url" {

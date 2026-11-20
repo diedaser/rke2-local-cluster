@@ -86,6 +86,9 @@ locals {
     psa_config_path             = local.psa_config_path
     etcd_snapshot_schedule_cron = var.etcd_snapshot_schedule_cron
     etcd_snapshot_retention     = var.etcd_snapshot_retention
+    etcd_s3_bucket              = aws_s3_bucket.backup.bucket
+    etcd_s3_region              = aws_s3_bucket.backup.region
+    etcd_s3_folder              = local.etcd_s3_folder
     node_labels                 = local.node_labels
   }
 

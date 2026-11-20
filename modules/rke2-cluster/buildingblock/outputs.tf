@@ -23,6 +23,11 @@ output "lb_dns_name" {
   value       = local.client_lb_dns
 }
 
+output "backup_bucket_name" {
+  description = "S3 bucket for etcd snapshots (prefix etcd/) and Rancher backups (prefix rancher/). Consumed by the `rancher` building block."
+  value       = aws_s3_bucket.backup.bucket
+}
+
 output "summary" {
   description = "Markdown summary shown in meshStack after apply."
   value = templatefile("${path.module}/templates/summary.md.tftpl", {
@@ -39,6 +44,9 @@ output "summary" {
     ingress_controller     = var.ingress_controller
     kubeconfig_secret_name = aws_secretsmanager_secret.kubeconfig.name
     kubeconfig_secret_arn  = aws_secretsmanager_secret.kubeconfig.arn
+    backup_bucket_name     = aws_s3_bucket.backup.bucket
+    etcd_snapshot_schedule = var.etcd_snapshot_schedule_cron
+    etcd_retention         = var.etcd_snapshot_retention
     admin_cert_expiry      = tls_locally_signed_cert.admin.validity_end_time
   })
 }

@@ -1,0 +1,6 @@
+# Set by backup.tf; the defaults only document the shape.
+name: rancher-scheduled
+resourceSetName: rancher-resource-set-full
+schedule: "0 3 * * *"
+retentionCount: 10
+encryptionConfigSecretName: rancher-backup-encryption

@@ -16,7 +16,7 @@ Do these once, before opening the wizard.
    tofu init && tofu apply
    tofu output -json   # aws_region, aws_account_id, aws_access_key_id, aws_secret_access_key
    ```
-   Keep the output at hand, but don't save it to a file in the repo. The backplane needs its own state passphrase in `TF_VAR_state_encryption_passphrase` and runs with administrator credentials for the tenant's AWS account (`-var account_id=... -var region=...`).
+   Keep the output at hand, but don't save it to a file in the repo. Re-run `tofu apply` here whenever the backplane changes (for example the S3/IAM permissions and the `rke2-backup-boundary` policy for backups, ADR-014) **before** releasing definition versions that need them. The backplane needs its own state passphrase in `TF_VAR_state_encryption_passphrase` and runs with administrator credentials for the tenant's AWS account (`-var account_id=... -var region=...`).
 
 2. **Create a Git deploy key** (no passphrase):
    ```bash
@@ -130,10 +130,11 @@ Create each input with **Add Input**. The **Name** must exactly match the OpenTo
 | `ssh_allowed_cidrs` | Static | Code | optional, default `[]` (no SSH rule) |
 | `root_volume_size_gb` | Static | Integer | optional, default `100` (40 to 16384), gp3 |
 | `root_volume_iops` | Static | Integer | optional, default `3000` (3000 to 16000) |
-| `kms_key_arn` | Static | String | optional, customer managed KMS key for EBS and the kubeconfig secret. Grant it in the backplane (`kms_key_arn`) |
+| `kms_key_arn` | Static | String | optional, customer managed KMS key for EBS, the kubeconfig secret and the backup bucket. Grant it in the backplane (`kms_key_arn`) |
 | `availability_zones` | Static | Code | optional, max. 4, for example `["eu-central-1a","eu-central-1b","eu-central-1c"]`. Default: first 3 zones of the region |
-| `etcd_snapshot_schedule_cron` | Static | String | optional, default `0 */6 * * *` |
-| `etcd_snapshot_retention` | Static | Integer | optional, default `28` |
+| `etcd_snapshot_schedule_cron` | Static | String | optional, default `0 */6 * * *` (local and S3) |
+| `etcd_snapshot_retention` | Static | Integer | optional, default `10`, ≥ 1. Kept per server, locally and in S3 |
+| `backup_force_destroy` | Static | Boolean | optional, default `false`: deleting the building block keeps the backup bucket (the delete run fails until it is emptied). `true` deletes all etcd and Rancher backups with the cluster |
 | `rke2_install_script_url` | Static | String | optional, default `https://get.rke2.io` (fetched by the nodes, not the runner) |
 
 **Inputs the ordering user fills in:**
@@ -161,6 +162,7 @@ Create each output with **Add Output**. The name must match the OpenTofu output.
 | `kubeconfig_secret_arn` | String | None |
 | `api_server_url` | String | Resource URL |
 | `lb_dns_name` | String | None |
+| `backup_bucket_name` | String | None |
 | `summary` | String | Summary |
 
 **Never map a secret here.** meshStack shows outputs in plaintext and has no sensitive outputs (ADR-012).
@@ -226,12 +228,16 @@ Add **`RKE2 Cluster (Rancher management)`** as a dependency. This guarantees the
 | `building_block_uuid` | Building Block UUID | String | Variable | no | |
 | `kubeconfig_secret_name` | **Parent Building Block Output** | String | Variable | no | select parent output `kubeconfig_secret_name` (ADR-012) |
 | `api_server_url` | **Parent Building Block Output** | String | Variable | no | select parent output `api_server_url` |
+| `backup_bucket_name` | **Parent Building Block Output** | String | Variable | no | select parent output `backup_bucket_name` (ADR-014). Parents created before ADR-014 must be upgraded first, or the output does not exist |
 | `rancher_version` | Static | String | Variable | no | optional, default `2.15.2`. Chart version **without** `v`; the `rancher2` provider pin must match its minor |
 | `cert_manager_version` | Static | String | Variable | no | optional, default `v1.21.2` |
+| `rancher_backup_chart_version` | Static | String | Variable | no | optional, default `110.0.3+up11.0.4` (Rancher 2.15 line). Must match the Rancher minor |
+| `rancher_backup_schedule` | Static | String | Variable | no | optional, default `0 3 * * *` (UTC), 5-field cron |
+| `rancher_backup_retention` | Static | Integer | Variable | no | optional, default `10`, ≥ 1 |
 | `rancher_chart_repository` | Static | String | Variable | no | optional, default rancher-stable `https://releases.rancher.com/server-charts/stable`; use the rancher-prime URL if licensed |
 | `replicas` | Static | Integer | Variable | no | optional, default `3`. Set to the server count (1 to 3) |
 | `ingress_class_name` | Static | String | Variable | no | optional, default `traefik` (RKE2's Traefik class); also used by the Let's Encrypt HTTP-01 solver |
-| `kms_key_arn` | Static | String | Variable | no | optional, customer managed KMS key for the admin secret |
+| `kms_key_arn` | Static | String | Variable | no | optional, customer managed KMS key for the admin and backup encryption secrets. Must be the same key as `rke2-cluster` uses, because the backup bucket is encrypted with it |
 | `rancher_hostname` | User Input | String | Variable | no | regex `^([a-z0-9-]+\.)+[a-z]{2,}$` |
 | `tls_source` | User Input | Single Select | Variable | no | options `rancher`, `letsEncrypt`, `secret`. Default `rancher` |
 | `letsencrypt_email` | User Input | String | Variable | no | **Add Condition**: `input.tls_source == "letsEncrypt"` |
@@ -247,6 +253,7 @@ The conditions on `letsencrypt_email` and the two PEM inputs hide the fields unl
 | `rancher_url` | String | Resource URL |
 | `admin_secret_name` | String | None |
 | `admin_secret_arn` | String | None |
+| `backup_encryption_secret_name` | String | None |
 | `summary` | String | Summary |
 
 ### 2.6 Create, publish, policies

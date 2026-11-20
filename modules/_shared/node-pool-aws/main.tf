@@ -1,4 +1,5 @@
-# Node pool interface: in → count, instance type, AMI, user_data[], subnets;
+# Node pool interface: in → count, instance type, AMI, user_data[], subnets,
+# optional instance profile;
 # out → ips[], ids[], names[]. Swap this module for another infrastructure
 # while keeping the same inputs and outputs.
 
@@ -32,6 +33,7 @@ resource "aws_instance" "pinned" {
   vpc_security_group_ids = var.security_group_ids
   placement_group        = var.placement_group
   key_name               = var.key_name
+  iam_instance_profile   = var.iam_instance_profile
   user_data_base64       = element(var.user_data_base64, count.index)
   ebs_optimized          = true
 
@@ -71,6 +73,7 @@ resource "aws_instance" "rolling" {
   vpc_security_group_ids      = var.security_group_ids
   placement_group             = var.placement_group
   key_name                    = var.key_name
+  iam_instance_profile        = var.iam_instance_profile
   user_data_base64            = element(var.user_data_base64, count.index)
   user_data_replace_on_change = true
   ebs_optimized               = true

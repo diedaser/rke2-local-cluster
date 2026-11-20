@@ -1,6 +1,16 @@
 # Input validation rules. Mocked providers: never touches real infrastructure.
 
 mock_provider "aws" {
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+    }
+  }
+  mock_data "aws_region" {
+    defaults = {
+      region = "eu-central-1"
+    }
+  }
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"
@@ -64,6 +74,7 @@ variables {
   aws_account_id              = "123456789012"
   state_encryption_passphrase = "test-passphrase-not-secret"
   kubeconfig_secret_name      = "mgmt-3f2b8c1e-kubeconfig"
+  backup_bucket_name          = "rke2-backup-3f2b8c1e-123456789012"
   api_server_url              = "https://203.0.113.50:6443"
   rancher_hostname            = "rancher.example.com"
 }
@@ -183,4 +194,36 @@ run "rejects_bad_kms_key" {
     kms_key_arn = "alias/my-key"
   }
   expect_failures = [var.kms_key_arn]
+}
+
+run "rejects_foreign_backup_bucket" {
+  command = plan
+  variables {
+    backup_bucket_name = "my-random-bucket"
+  }
+  expect_failures = [var.backup_bucket_name]
+}
+
+run "rejects_zero_backup_retention" {
+  command = plan
+  variables {
+    rancher_backup_retention = 0
+  }
+  expect_failures = [var.rancher_backup_retention]
+}
+
+run "rejects_bad_backup_schedule" {
+  command = plan
+  variables {
+    rancher_backup_schedule = "@daily"
+  }
+  expect_failures = [var.rancher_backup_schedule]
+}
+
+run "rejects_unpinned_backup_chart" {
+  command = plan
+  variables {
+    rancher_backup_chart_version = "110.0.3"
+  }
+  expect_failures = [var.rancher_backup_chart_version]
 }

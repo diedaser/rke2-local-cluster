@@ -9,6 +9,13 @@ Rancher is installed and bootstrapped: ${rancher_url}
 | TLS source | `${tls_source}` |
 | Replicas | ${replicas} |
 
+## Backups
+
+Encrypted Rancher backups (`rancher-resource-set-full`) go to
+`${backup_location}` on schedule `${backup_schedule}` (UTC); the newest
+${backup_retention} are kept. The encryption config needed for a restore is in
+Secrets Manager: `${backup_secret_name}`.
+
 ## Admin access
 
 The admin credentials (username `admin`, password, API token) are stored in

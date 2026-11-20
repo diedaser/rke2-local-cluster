@@ -2,6 +2,17 @@
 # tls, random and cloudinit run for real: they are local and touch no infra.
 
 mock_provider "aws" {
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+    }
+  }
+  mock_resource "aws_s3_bucket" {
+    defaults = {
+      arn    = "arn:aws:s3:::rke2-backup-mock"
+      region = "eu-central-1"
+    }
+  }
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"
@@ -314,6 +325,74 @@ run "dev_single_server_with_agents" {
   assert {
     condition     = length(aws_vpc_security_group_ingress_rule.ssh) == 1
     error_message = "ssh_allowed_cidrs must create SSH rules."
+  }
+}
+
+run "backups" {
+  command = apply
+
+  variables {
+    agent_count = 1
+  }
+
+  assert {
+    condition     = aws_s3_bucket.backup.bucket == "rke2-backup-3f2b8c1e-123456789012"
+    error_message = "Backup bucket name must follow rke2-backup-<short_id>-<account> (backplane IAM scope)."
+  }
+
+  assert {
+    condition     = aws_s3_bucket.backup.force_destroy == false
+    error_message = "Backups must survive a building block delete by default."
+  }
+
+  assert {
+    condition     = aws_iam_role.server.path == "/rke2/" && aws_iam_instance_profile.server.path == "/rke2/"
+    error_message = "IAM role and instance profile must live under /rke2/ (backplane IAM scope)."
+  }
+
+  assert {
+    condition     = aws_iam_role.server.permissions_boundary == "arn:aws:iam::123456789012:policy/rke2/rke2-backup-boundary"
+    error_message = "The server role must carry the backplane permissions boundary, or the runner is denied CreateRole."
+  }
+
+  assert {
+    condition     = module.server_init.iam_instance_profile == aws_iam_instance_profile.server.name && module.server_join.iam_instance_profile == aws_iam_instance_profile.server.name
+    error_message = "Servers must carry the etcd snapshot instance profile."
+  }
+
+  assert {
+    condition     = module.agents.iam_instance_profile == null
+    error_message = "Agents must not get S3 access."
+  }
+
+  assert {
+    condition = alltrue([for role in ["server_init", "server_join"] : alltrue([
+      strcontains(local.rke2_config[role], "etcd-s3: true"),
+      strcontains(local.rke2_config[role], "etcd-s3-bucket: \"rke2-backup-3f2b8c1e-123456789012\""),
+      strcontains(local.rke2_config[role], "etcd-s3-region: \"eu-central-1\""),
+      strcontains(local.rke2_config[role], "etcd-s3-endpoint: \"s3.eu-central-1.amazonaws.com\""),
+      strcontains(local.rke2_config[role], "etcd-s3-folder: \"etcd\""),
+      strcontains(local.rke2_config[role], "etcd-snapshot-retention: 10"),
+    ])])
+    error_message = "Every server must upload etcd snapshots to the backup bucket and keep 10."
+  }
+
+  assert {
+    condition     = !strcontains(local.rke2_config["server_init"], "etcd-s3-access-key")
+    error_message = "etcd S3 must use the instance profile, never a static key."
+  }
+}
+
+run "backup_force_destroy" {
+  command = plan
+
+  variables {
+    backup_force_destroy = true
+  }
+
+  assert {
+    condition     = aws_s3_bucket.backup.force_destroy == true
+    error_message = "backup_force_destroy must reach the bucket."
   }
 }
 

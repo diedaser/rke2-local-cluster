@@ -67,6 +67,12 @@ variable "key_name" {
   default     = null
 }
 
+variable "iam_instance_profile" {
+  description = "Optional IAM instance profile name. Changing it re-associates the profile in place; the instance is not replaced."
+  type        = string
+  default     = null
+}
+
 variable "root_volume_size_gb" {
   description = "Size of the gp3 root volume in GiB."
   type        = number

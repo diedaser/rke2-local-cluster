@@ -18,4 +18,11 @@ pod-security-admission-config-file: ${jsonencode(psa_config_path)}
 secrets-encryption: true
 etcd-snapshot-schedule-cron: ${jsonencode(etcd_snapshot_schedule_cron)}
 etcd-snapshot-retention: ${etcd_snapshot_retention}
+# Snapshots are also uploaded to S3 (ADR-014). No access key: RKE2 uses the
+# server instance profile. Retention applies per server, locally and in S3.
+etcd-s3: true
+etcd-s3-bucket: ${jsonencode(etcd_s3_bucket)}
+etcd-s3-region: ${jsonencode(etcd_s3_region)}
+etcd-s3-endpoint: ${jsonencode("s3.${etcd_s3_region}.amazonaws.com")}
+etcd-s3-folder: ${jsonencode(etcd_s3_folder)}
 node-label: ${jsonencode(node_labels)}

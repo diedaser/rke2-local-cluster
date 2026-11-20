@@ -9,6 +9,8 @@
 | User data exceeds the EC2 limit | [User data too large](#user-data-too-large) |
 | Joining servers or agents never appear | [Token CA hash](#joining-nodes-token-ca-hash-does-not-match) |
 | `rancher` run fails on `/ping` | [Rancher ping fails](#rancher-ping-fails) |
+| No etcd snapshots or Rancher backups in S3 | [Backups missing in S3](#backups-missing-in-s3) |
+| `rke2-cluster` delete fails with `BucketNotEmpty` | [Backups missing in S3](#backups-missing-in-s3) |
 | `rancher` destroy hangs or fails on `/ping` | [Destroy blocked by the ping check](#destroy-blocked-by-the-ping-check) |
 | Let's Encrypt certificate not issued | [Let's Encrypt](#lets-encrypt) |
 | "secret with this name is already scheduled for deletion" | [Secret scheduled for deletion](#secret-scheduled-for-deletion) |
@@ -34,7 +36,7 @@ The precondition compares `aws sts get-caller-identity` with `aws_account_id` (P
 
 ## IAM permissions
 
-The runner policy is in `modules/rke2-cluster/backplane/main.tf` and is restricted to one region (`aws:RequestedRegion`).
+The runner's permissions are in `modules/rke2-cluster/backplane/main.tf`: two customer managed policies attached to the IAM user, `<iam_user_name>-infrastructure` (EC2/VPC/NLB, restricted to one region through `aws:RequestedRegion`) and `<iam_user_name>-identity` (backup bucket, bounded IAM principals, Secrets Manager, KMS). They are managed policies because inline user policies are capped at 2048 bytes in total.
 
 - `AWS_REGION` on the definition differs from the backplane `region`: every call is denied. Align them.
 - First NLB in an account: the policy allows `iam:CreateServiceLinkedRole` for Elastic Load Balancing. If an SCP denies it, create the role once as admin: `aws iam create-service-linked-role --aws-service-name elasticloadbalancing.amazonaws.com`.
@@ -79,6 +81,16 @@ Compare `sha256sum server-ca.crt` on server 0 with the hash in the token. Fix th
 3. **Cluster is being deleted anyway.** `tofu state rm` the `module.rancher` Kubernetes/Helm/`rancher2` resources, then destroy the rest. Deleting the nodes removes the in-cluster objects. Do not `state rm` the Secrets Manager secrets: destroy them, or they stay behind in the account.
 
 In meshStack, the runner has no `/etc/hosts` and no CLI flags. Whether a definition can run a destroy without refresh is not documented here; check the meshStack building block docs before relying on option 2. Option 1 always works.
+
+## Backups missing in S3
+
+[ADR-014](adr/ADR-014-backups-to-s3.md). Check `aws s3 ls s3://<backup_bucket_name>/etcd/` and `.../rancher/`.
+
+- **`AccessDenied` on CreateRole/CreateUser in the run:** the backplane was not re-applied after the backup change, so the runner lacks the bounded IAM permissions or the `rke2-backup-boundary` policy does not exist. Run `tofu apply` in `modules/rke2-cluster/backplane`.
+- **No etcd snapshots from servers that existed before ADR-014:** their user data was never re-applied. Add the `etcd-s3*` keys by hand ([operations](operations.md#servers-created-before-adr-014)) or rebuild the servers.
+- **etcd upload errors:** `journalctl -u rke2-server | grep -i s3` on a server. `AccessDenied` with a customer managed key means the key policy does not allow the server role, or the backplane's `kms_key_arn` differs.
+- **Rancher backup errors:** `kubectl get backups.resources.cattle.io rancher-scheduled -o yaml` (status and conditions) and `kubectl -n cattle-resources-system logs deploy/rancher-backup`. With `kms_key_arn`, the `rancher` building block must use the same key as `rke2-cluster`.
+- **`BucketNotEmpty` on delete:** expected with `backup_force_destroy = false`. Keep what you need, empty the bucket, run the delete again ([operations](operations.md#deleting)).
 
 ## Let's Encrypt
 

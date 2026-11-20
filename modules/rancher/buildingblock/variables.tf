@@ -55,6 +55,16 @@ variable "kubeconfig_secret_name" {
   }
 }
 
+variable "backup_bucket_name" {
+  description = "S3 bucket for Rancher backups (source: Parent Building Block Output `backup_bucket_name`). Backups go to the prefix rancher/."
+  type        = string
+
+  validation {
+    condition     = can(regex("^rke2-backup-[0-9a-f]{8}-[0-9]{12}$", var.backup_bucket_name))
+    error_message = "backup_bucket_name must be the backup_bucket_name output of the rke2-cluster building block."
+  }
+}
+
 variable "api_server_url" {
   description = "Kubernetes API URL (source: Parent Building Block Output `api_server_url`). Polled for readiness before any Kubernetes resource."
   type        = string
@@ -158,6 +168,40 @@ variable "cert_manager_version" {
   validation {
     condition     = can(regex("^v1\\.[0-9]+\\.[0-9]+$", var.cert_manager_version))
     error_message = "cert_manager_version must be a pinned version such as v1.21.2."
+  }
+}
+
+variable "rancher_backup_chart_version" {
+  description = "rancher-backup and rancher-backup-crd chart version (charts.rancher.io). Must match the Rancher minor (catalog.cattle.io/rancher-version annotation)."
+  type        = string
+  # 110.x = Rancher 2.15 (annotation ">= 2.15.0-0 < 2.16.0-0").
+  default = "110.0.3+up11.0.4"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+\\+up[0-9]+\\.[0-9]+\\.[0-9]+$", var.rancher_backup_chart_version))
+    error_message = "rancher_backup_chart_version must be a pinned chart version such as 110.0.3+up11.0.4."
+  }
+}
+
+variable "rancher_backup_schedule" {
+  description = "Cron schedule of the recurring Rancher backup (operator time zone: UTC)."
+  type        = string
+  default     = "0 3 * * *"
+
+  validation {
+    condition     = length(split(" ", trimspace(var.rancher_backup_schedule))) == 5
+    error_message = "rancher_backup_schedule must be a 5-field cron expression."
+  }
+}
+
+variable "rancher_backup_retention" {
+  description = "Number of Rancher backups kept in S3. Older ones are deleted by the operator."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.rancher_backup_retention >= 1 && floor(var.rancher_backup_retention) == var.rancher_backup_retention
+    error_message = "rancher_backup_retention must be a positive integer."
   }
 }
 

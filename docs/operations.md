@@ -66,26 +66,78 @@ If quorum is lost, follow [disaster recovery](#disaster-recovery).
 
 ## etcd snapshots
 
-Servers take local snapshots as configured by `etcd_snapshot_schedule_cron` (default `0 */6 * * *`) and `etcd_snapshot_retention` (default 28). Snapshots are stored in `/var/lib/rancher/rke2/server/db/snapshots/` on each server.
+Servers take snapshots as configured by `etcd_snapshot_schedule_cron` (default `0 */6 * * *`) and keep `etcd_snapshot_retention` (default 10) per server. Each snapshot is written to `/var/lib/rancher/rke2/server/db/snapshots/` and uploaded to `s3://<backup_bucket_name>/etcd/` with the server instance profile ([ADR-014](adr/ADR-014-backups-to-s3.md)). With 3 servers the bucket holds up to 30 snapshots.
 
-- On-demand snapshot: `rke2 etcd-snapshot save --name pre-change`
-- List snapshots: `rke2 etcd-snapshot list`
+- On-demand snapshot: `rke2 etcd-snapshot save --name pre-change` (uploads to S3 too)
+- List snapshots, local and S3: `rke2 etcd-snapshot list`
+- From the workstation: `aws s3 ls s3://<backup_bucket_name>/etcd/`
 
-S3 targets are not wired into the module yet. Until then, configure them by hand (`etcd-s3*` keys in `/etc/rancher/rke2/config.yaml` on each server), or copy snapshots off-host. Local snapshots die with the root volumes (`delete_on_termination = true`). An S3 target needs an instance profile with `s3:PutObject`, which the module does not create yet.
+### Servers created before ADR-014
+
+Servers ignore user data changes, so servers that existed before the S3 change get the instance profile in place but no `etcd-s3*` settings. On each such server (serial console or break-glass SSH), append to `/etc/rancher/rke2/config.yaml`, then restart one server at a time:
+
+```yaml
+etcd-s3: true
+etcd-s3-bucket: "<backup_bucket_name>"
+etcd-s3-region: "<region>"
+etcd-s3-endpoint: "s3.<region>.amazonaws.com"
+etcd-s3-folder: "etcd"
+etcd-snapshot-retention: 10
+```
+
+Rebuilding the cluster (new servers get the settings from cloud-init) is the alternative.
 
 ## Disaster recovery
 
 Restore an etcd snapshot on the first server with `cluster-reset`:
 
 1. Stop RKE2 on **all** servers: `systemctl stop rke2-server`.
-2. On server 0, copy the snapshot to the node if needed, then run:
+2. On server 0, restore either a local snapshot or one from S3, then start RKE2:
    ```bash
+   # local file
    rke2 server --cluster-reset --cluster-reset-restore-path=/var/lib/rancher/rke2/server/db/snapshots/<snapshot>
+   # from S3: the etcd-s3* settings come from config.yaml; pass the snapshot NAME, not a path
+   rke2 server --cluster-reset --etcd-s3 --cluster-reset-restore-path=<snapshot-name>
    systemctl start rke2-server
    ```
+   `aws s3 ls s3://<backup_bucket_name>/etcd/` lists the names.
 3. On every other server: `rm -rf /var/lib/rancher/rke2/server/db`, then `systemctl start rke2-server`. They re-join through the internal NLB.
 
 If server 0 itself is gone, create a replacement with the same CA files (`tofu apply -replace='module.server_init.aws_instance.pinned[0]'`), stop RKE2 there before it serves workloads, and restore as above. The CA set is in state, so restored certificates and the kubeconfig stay valid.
+
+## Rancher backups
+
+The `rancher` building block installs the rancher-backup operator and a recurring `Backup` named `rancher-scheduled` ([ADR-014](adr/ADR-014-backups-to-s3.md)): resource set `rancher-resource-set-full`, schedule `rancher_backup_schedule` (default `0 3 * * *`, UTC), newest `rancher_backup_retention` (default 10) kept in `s3://<backup_bucket_name>/rancher/`, encrypted.
+
+- Status: `kubectl get backups.resources.cattle.io rancher-scheduled -o wide`
+- Archives: `aws s3 ls s3://<backup_bucket_name>/rancher/`
+- One-off backup before a change: apply a `Backup` without `schedule` and the same `resourceSetName` and `encryptionConfigSecretName`.
+
+### Restore into the same cluster
+
+```yaml
+apiVersion: resources.cattle.io/v1
+kind: Restore
+metadata:
+  name: restore-<date>
+spec:
+  backupFilename: <archive>.tar.gz.enc
+  encryptionConfigSecretName: rancher-backup-encryption
+```
+
+The operator reads from its default S3 location. Rancher restarts during the restore.
+
+### Restore into a new cluster (migration, DR)
+
+1. Get the encryption config: `aws secretsmanager get-secret-value --secret-id <prefix>-rancher-backup-encryption --query SecretString --output text > encryption-provider-config.yaml`. Without it the archives cannot be read.
+2. On the new cluster, install `rancher-backup-crd` and `rancher-backup` (same chart version) with S3 credentials for `rancher/`, and create the secret `rancher-backup-encryption` in `cattle-resources-system` from the file (key `encryption-provider-config.yaml`).
+3. Apply a `Restore` with `prune: false`, then install Rancher with the same version and hostname. Follow "Migrating Rancher to a New Cluster" in the Rancher docs for the version you run.
+
+Shortcut for a meshStack rebuild: order `rke2-cluster` + `rancher` again, then run step 3 against the new cluster. The new `rancher` instance creates its own encryption key, so first replace the `rancher-backup-encryption` secret with the old config from step 1.
+
+### rancher-backup access key rotation
+
+`tofu apply -replace=aws_iam_access_key.rancher_backup` in the `rancher` building block (or the equivalent meshStack run). The Kubernetes secret is updated in the same run; the operator picks it up for the next backup.
 
 ## Admin certificate renewal
 
@@ -105,7 +157,7 @@ This is ADR-003-sensitive: changes to `pki.tf` require an update to [ADR-003](ad
 ## Rancher upgrades
 
 1. Check the support matrix for the target Rancher version against the running RKE2 version.
-2. Bump `rancher_version` (chart version, no `v`). For a new Rancher **minor**, also bump the `rancher/rancher2` provider major in `modules/rancher/buildingblock/versions.tf`, because v15 corresponds to Rancher 2.15 ([ADR-008](adr/ADR-008-rancher-installation.md)).
+2. Bump `rancher_version` (chart version, no `v`). For a new Rancher **minor**, also bump the `rancher/rancher2` provider major in `modules/rancher/buildingblock/versions.tf`, because v15 corresponds to Rancher 2.15 ([ADR-008](adr/ADR-008-rancher-installation.md)), and `rancher_backup_chart_version` to the line whose `catalog.cattle.io/rancher-version` annotation covers the new minor (110.x = 2.15).
 3. Upgrade cert-manager separately if needed, one component per PR.
 4. Run with "Version upgrade" approval and review the Helm diff.
 
@@ -133,6 +185,7 @@ Never change `TF_VAR_state_encryption_passphrase` on a definition. Existing stat
 
 ## Deleting
 
-1. Delete the `rancher` building block first. This uninstalls the Helm releases and deletes the admin secret in Secrets Manager (immediately, no recovery window). Rancher's uninstall leaves CRDs and some namespaces behind; this is irrelevant if the cluster is deleted next.
-2. Delete the `rke2-cluster` building block. This destroys servers, agents, root volumes, both NLBs, the NAT gateway and its EIP, the VPC with subnets, route tables and security groups, the placement group and the kubeconfig secret in Secrets Manager.
+1. Delete the `rancher` building block first. This uninstalls the Helm releases, deletes the rancher-backup IAM user and the admin secret (immediately), and schedules the backup encryption secret for deletion in 30 days. Restore it with `aws secretsmanager restore-secret` if the backups are still needed. Rancher's uninstall leaves CRDs and some namespaces behind; this is irrelevant if the cluster is deleted next.
+2. Delete the `rke2-cluster` building block. This destroys servers, agents, root volumes, both NLBs, the NAT gateway and its EIP, the VPC with subnets, route tables and security groups, the placement group, the server IAM role and instance profile, and the kubeconfig secret in Secrets Manager.
+   - The backup bucket is deleted only with `backup_force_destroy = true`. With the default `false`, the run fails on the non-empty bucket on purpose: keep a copy of what you need, then `aws s3 rm s3://<backup_bucket_name> --recursive` and run the delete again.
 3. Check that nothing tagged `meshstack-building-block=<uuid>` remains in the account and region (Resource Groups → Tag Editor).

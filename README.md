@@ -23,6 +23,10 @@ RKE2 v1.34 to v1.36):
 | RKE2 | v1.36.6+rke2r1 |
 | Rancher chart | 2.15.2 (`rancher/rancher2` provider ~> 15.1.0) |
 | cert-manager | v1.21.2 |
+| rancher-backup chart | 110.0.3+up11.0.4 (Rancher 2.15 line) |
+
+Backups: etcd snapshots and encrypted Rancher backups go to a per-cluster S3
+bucket, 10 kept each by default ([ADR-014](docs/adr/ADR-014-backups-to-s3.md)).
 
 ## Ordering in meshStack
 

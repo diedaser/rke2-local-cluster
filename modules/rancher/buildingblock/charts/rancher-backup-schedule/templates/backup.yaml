@@ -1,0 +1,11 @@
+# No storageLocation: the operator's default S3 location (rancher-backup chart
+# values) applies.
+apiVersion: resources.cattle.io/v1
+kind: Backup
+metadata:
+  name: {{ required "name is required" .Values.name }}
+spec:
+  resourceSetName: {{ required "resourceSetName is required" .Values.resourceSetName }}
+  schedule: {{ required "schedule is required" .Values.schedule | quote }}
+  retentionCount: {{ required "retentionCount is required" .Values.retentionCount | int }}
+  encryptionConfigSecretName: {{ required "encryptionConfigSecretName is required" .Values.encryptionConfigSecretName }}

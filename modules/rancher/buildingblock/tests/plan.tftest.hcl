@@ -1,6 +1,16 @@
 # Resources and conditional behaviour, with mocked providers.
 
 mock_provider "aws" {
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+    }
+  }
+  mock_data "aws_region" {
+    defaults = {
+      region = "eu-central-1"
+    }
+  }
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"
@@ -64,6 +74,7 @@ variables {
   aws_account_id              = "123456789012"
   state_encryption_passphrase = "test-passphrase-not-secret"
   kubeconfig_secret_name      = "mgmt-3f2b8c1e-kubeconfig"
+  backup_bucket_name          = "rke2-backup-3f2b8c1e-123456789012"
   api_server_url              = "https://203.0.113.50:6443"
   rancher_hostname            = "rancher.example.com"
 }
@@ -165,5 +176,85 @@ run "bring_your_own_certificate" {
   assert {
     condition     = kubernetes_secret_v1.tls_rancher_ingress[0].metadata[0].name == "tls-rancher-ingress"
     error_message = "The chart expects the secret tls-rancher-ingress."
+  }
+}
+
+run "backups" {
+  command = apply
+
+  assert {
+    condition = yamldecode(helm_release.rancher_backup.values[0]).s3 == {
+      enabled                   = true
+      credentialSecretName      = "rancher-backup-s3-credentials"
+      credentialSecretNamespace = "cattle-resources-system"
+      bucketName                = "rke2-backup-3f2b8c1e-123456789012"
+      folder                    = "rancher"
+      region                    = "eu-central-1"
+      endpoint                  = "s3.eu-central-1.amazonaws.com"
+    }
+    error_message = "rancher-backup must default to the rancher/ prefix of the cluster's backup bucket."
+  }
+
+  assert {
+    condition     = helm_release.rancher_backup.version == "110.0.3+up11.0.4" && helm_release.rancher_backup_crd.version == helm_release.rancher_backup.version
+    error_message = "rancher-backup and its CRD chart must use the same pinned version."
+  }
+
+  assert {
+    condition = yamldecode(helm_release.rancher_backup_schedule.values[0]) == {
+      name                       = "rancher-scheduled"
+      resourceSetName            = "rancher-resource-set-full"
+      schedule                   = "0 3 * * *"
+      retentionCount             = 10
+      encryptionConfigSecretName = "rancher-backup-encryption"
+    }
+    error_message = "The recurring backup must be encrypted, full, daily and keep 10."
+  }
+
+  assert {
+    condition     = aws_iam_user.rancher_backup.path == "/rke2-backup/"
+    error_message = "The backup IAM user must live under /rke2-backup/ (backplane IAM scope)."
+  }
+
+  assert {
+    condition     = aws_iam_user.rancher_backup.permissions_boundary == "arn:aws:iam::123456789012:policy/rke2/rke2-backup-boundary"
+    error_message = "The backup IAM user must carry the backplane permissions boundary, or the runner is denied CreateUser."
+  }
+
+  assert {
+    condition     = kubernetes_secret_v1.backup_s3_credentials.data.accessKey == aws_iam_access_key.rancher_backup.id
+    error_message = "The operator must use the dedicated IAM user's key."
+  }
+
+  assert {
+    condition = (
+      yamldecode(aws_secretsmanager_secret_version.backup_encryption.secret_string).kind == "EncryptionConfiguration" &&
+      kubernetes_secret_v1.backup_encryption.data["encryption-provider-config.yaml"] == aws_secretsmanager_secret_version.backup_encryption.secret_string
+    )
+    error_message = "The in-cluster encryption config must be escrowed unchanged in Secrets Manager."
+  }
+
+  assert {
+    condition     = aws_secretsmanager_secret.backup_encryption.recovery_window_in_days == 30
+    error_message = "The backup encryption key must survive an accidental delete for 30 days."
+  }
+
+  assert {
+    condition     = output.backup_encryption_secret_name == aws_secretsmanager_secret.backup_encryption.name
+    error_message = "The escrow secret name must be output (name only, ADR-012)."
+  }
+}
+
+run "backup_retention_override" {
+  command = plan
+
+  variables {
+    rancher_backup_retention = 30
+    rancher_backup_schedule  = "0 */12 * * *"
+  }
+
+  assert {
+    condition     = yamldecode(helm_release.rancher_backup_schedule.values[0]).retentionCount == 30 && yamldecode(helm_release.rancher_backup_schedule.values[0]).schedule == "0 */12 * * *"
+    error_message = "Schedule and retention inputs must reach the Backup resource."
   }
 }

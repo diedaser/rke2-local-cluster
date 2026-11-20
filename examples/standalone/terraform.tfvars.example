@@ -8,7 +8,7 @@
 
 aws_account_id       = "123456789012"
 cluster_name         = "dev-mgmt"
-server_count         = "1"
+server_count         = "3"
 server_instance_type = "m7i.xlarge"
 ami_id               = "ami-0123456789abcdef0"
 # Must contain the egress IP of the machine running tofu (curl https://checkip.amazonaws.com).
