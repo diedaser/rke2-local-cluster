@@ -16,6 +16,8 @@ Use the `http` data source with a `retry` block and a `postcondition` on `status
 | `rancher` `data.http.api_readyz` | `<api_server_url>/readyz` | credentials from the Secrets Manager kubeconfig | 30 x 10 s |
 | `rancher` `data.http.rancher_ping` | `https://<rancher_hostname>/ping`, expects `pong` | `insecure = true` | 60 x 10 s |
 
+A third check in `rancher` polls the `rancher.cattle.io` MutatingWebhookConfiguration through the Kubernetes API until `rancher-webhook` has registered its machine-config and provisioning-cluster mutations (ADR-015): `/ping` answers before that, and objects created in the gap miss their creator annotation.
+
 Downstream resources `depends_on` these data sources: the kubeconfig secret version, cert-manager, the `cattle-system` namespace and `rancher2_bootstrap`. `time_sleep` is used only where no endpoint exists. There is currently no such case.
 
 ## Consequences

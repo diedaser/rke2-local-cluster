@@ -49,3 +49,35 @@ data "http" "rancher_ping" {
     }
   }
 }
+
+# Rancher answers /ping before it has deployed rancher-webhook. Objects created
+# in that gap miss the webhook's mutations: machine configs then lack
+# field.cattle.io/creatorId, Rancher never grants their creator read access,
+# and a downstream-cluster run times out waiting for them (ADR-015). Wait
+# until the webhook has registered its mutations for machine configs and
+# provisioning clusters.
+data "http" "rancher_webhook" {
+  url                = "${var.api_server_url}/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations/rancher.cattle.io"
+  ca_cert_pem        = local.kube_cluster_ca_certificate
+  client_cert_pem    = local.kube_client_certificate
+  client_key_pem     = local.kube_client_key
+  request_timeout_ms = 10000
+
+  retry {
+    attempts     = 30
+    min_delay_ms = 10000
+    max_delay_ms = 10000
+  }
+
+  depends_on = [data.http.rancher_ping]
+
+  lifecycle {
+    postcondition {
+      condition = self.status_code == 200 && alltrue([
+        for name in ["rancher.cattle.io.rke-machine-config.cattle.io", "rancher.cattle.io.clusters.provisioning.cattle.io"] :
+        contains([for w in try(jsondecode(self.response_body).webhooks, []) : w.name], name)
+      ])
+      error_message = "rancher-webhook has not registered its mutating webhooks for machine configs and provisioning clusters (HTTP ${self.status_code}). Check the rancher-webhook deployment in cattle-system."
+    }
+  }
+}

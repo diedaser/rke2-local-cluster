@@ -71,6 +71,8 @@ resource "aws_secretsmanager_secret_version" "downstream" {
     password = random_password.downstream.result
   })
 
-  # Publish only credentials that work: the user exists and has its roles.
-  depends_on = [rancher2_global_role_binding.downstream]
+  # Publish only credentials that work: the user exists and has its roles,
+  # and rancher-webhook is registered (readiness.tf), so the clusters and
+  # machine configs this user creates get their creator RBAC.
+  depends_on = [rancher2_global_role_binding.downstream, data.http.rancher_webhook]
 }

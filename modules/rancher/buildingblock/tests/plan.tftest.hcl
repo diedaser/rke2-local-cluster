@@ -79,6 +79,16 @@ variables {
   rancher_hostname            = "rancher.example.com"
 }
 
+
+# The rancher-webhook readiness check expects the webhook configuration JSON.
+override_data {
+  target = data.http.rancher_webhook
+  values = {
+    status_code   = 200
+    response_body = "{\"webhooks\":[{\"name\":\"rancher.cattle.io.rke-machine-config.cattle.io\"},{\"name\":\"rancher.cattle.io.clusters.provisioning.cattle.io\"}]}"
+  }
+}
+
 run "default_install" {
   command = apply
 
@@ -317,4 +327,18 @@ run "management_network_pass_through" {
     condition     = output.mgmt_vpc_id == "vpc-0123456789abcdef0" && output.mgmt_private_subnet_ids["eu-central-1b"] == "subnet-0123456789abcdef1"
     error_message = "The management VPC and subnets must be passed on unchanged."
   }
+}
+
+run "waits_for_rancher_webhook" {
+  command = plan
+
+  override_data {
+    target = data.http.rancher_webhook
+    values = {
+      status_code   = 200
+      response_body = "{\"webhooks\":[{\"name\":\"rancher.cattle.io.clusters.provisioning.cattle.io\"}]}"
+    }
+  }
+
+  expect_failures = [data.http.rancher_webhook]
 }

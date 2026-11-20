@@ -79,6 +79,16 @@ variables {
   rancher_hostname            = "rancher.example.com"
 }
 
+
+# The rancher-webhook readiness check expects the webhook configuration JSON.
+override_data {
+  target = data.http.rancher_webhook
+  values = {
+    status_code   = 200
+    response_body = "{\"webhooks\":[{\"name\":\"rancher.cattle.io.rke-machine-config.cattle.io\"},{\"name\":\"rancher.cattle.io.clusters.provisioning.cattle.io\"}]}"
+  }
+}
+
 run "valid_defaults" {
   command = plan
 }
