@@ -18,15 +18,20 @@
 # downstream instances, after Rancher (their owner) is already gone. Clean
 # them up by tag in that case (docs/troubleshooting.md, "Downstream cluster").
 #
-# Inputs from elsewhere, exported in the shell (never in a file):
-#   export TF_VAR_state_encryption_passphrase=...      # may differ from ../
-#   export TF_VAR_downstream_credentials_secret_name=$(tofu -chdir=.. output -raw downstream_credentials_secret_name)
-#   export TF_VAR_mgmt_vpc_id=$(tofu -chdir=.. output -raw mgmt_vpc_id)
-#   export TF_VAR_mgmt_private_subnet_ids=$(tofu -chdir=.. output -json mgmt_private_subnet_ids)
-#   export TF_VAR_node_driver_access_key_id=$(tofu -chdir=../../../modules/rke2-cluster/backplane output -raw node_driver_access_key_id)
-#   export TF_VAR_node_driver_secret_access_key=$(tofu -chdir=../../../modules/rke2-cluster/backplane output -raw node_driver_secret_access_key)
-# The backplane reads need its own TF_VAR_state_encryption_passphrase; run
-# them in a subshell if it differs.
+# The parent values (Rancher login secret, management VPC and subnets) are
+# read from the local, encrypted state of ../ (data.terraform_remote_state.mgmt),
+# standing in for meshStack's Parent Building Block Output mapping. Building
+# blocks themselves never use terraform_remote_state (ADR-005).
+#
+# TF_VAR_state_encryption_passphrase must be the SAME passphrase as for ../:
+# OpenTofu's pbkdf2 key provider decrypts a state only with a provider of the
+# same name ("passphrase") and passphrase, and this root uses that one
+# provider for its own state and for reading ../.
+#
+# Only the node-driver key comes from the shell (its backplane state has a
+# different passphrase); read it in a subshell with the backplane passphrase:
+#   export TF_VAR_node_driver_access_key_id=$(cd ../../../modules/rke2-cluster/backplane && TF_VAR_state_encryption_passphrase='<backplane>' tofu output -raw node_driver_access_key_id)
+#   export TF_VAR_node_driver_secret_access_key=$(cd ../../../modules/rke2-cluster/backplane && TF_VAR_state_encryption_passphrase='<backplane>' tofu output -raw node_driver_secret_access_key)
 
 terraform {
   required_version = ">= 1.8"
@@ -46,11 +51,27 @@ terraform {
       method   = method.aes_gcm.default
       enforced = true
     }
+    # Decrypts ../terraform.tfstate (same key provider name and passphrase).
+    remote_state_data_sources {
+      default {
+        method = method.aes_gcm.default
+      }
+    }
+  }
+}
+
+# The management side (rke2-cluster + rancher) from ../. Its path assumes the
+# default local backend there; with a backend_override.tf in ../, point this
+# data source at the same backend.
+data "terraform_remote_state" "mgmt" {
+  backend = "local"
+  config = {
+    path = "${path.module}/../terraform.tfstate"
   }
 }
 
 variable "state_encryption_passphrase" {
-  description = "State encryption passphrase (TF_VAR_state_encryption_passphrase). Never commit it."
+  description = "State encryption passphrase (TF_VAR_state_encryption_passphrase), the same as for ../. Never commit it."
   type        = string
   sensitive   = true
 }
@@ -63,21 +84,6 @@ variable "aws_account_id" {
 variable "ami_id" {
   description = "Ubuntu 24.04 amd64 AMI ID for the region."
   type        = string
-}
-
-variable "downstream_credentials_secret_name" {
-  description = "Output downstream_credentials_secret_name of ../ (TF_VAR_downstream_credentials_secret_name)."
-  type        = string
-}
-
-variable "mgmt_vpc_id" {
-  description = "Output mgmt_vpc_id of ../ (TF_VAR_mgmt_vpc_id)."
-  type        = string
-}
-
-variable "mgmt_private_subnet_ids" {
-  description = "Output mgmt_private_subnet_ids of ../ (TF_VAR_mgmt_private_subnet_ids, JSON map)."
-  type        = map(string)
 }
 
 variable "node_driver_access_key_id" {
@@ -120,9 +126,9 @@ module "downstream_cluster" {
   aws_account_id              = var.aws_account_id
   state_encryption_passphrase = var.state_encryption_passphrase
 
-  downstream_credentials_secret_name = var.downstream_credentials_secret_name
-  mgmt_vpc_id                        = var.mgmt_vpc_id
-  mgmt_private_subnet_ids            = var.mgmt_private_subnet_ids
+  downstream_credentials_secret_name = data.terraform_remote_state.mgmt.outputs.downstream_credentials_secret_name
+  mgmt_vpc_id                        = data.terraform_remote_state.mgmt.outputs.mgmt_vpc_id
+  mgmt_private_subnet_ids            = data.terraform_remote_state.mgmt.outputs.mgmt_private_subnet_ids
   node_driver_access_key_id          = var.node_driver_access_key_id
   node_driver_secret_access_key      = var.node_driver_secret_access_key
 

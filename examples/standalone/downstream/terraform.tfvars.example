@@ -1,6 +1,7 @@
-# Copy to terraform.tfvars (git-ignored) and adjust. Secrets (passphrase,
-# node-driver key) and the parent's secret name come from the shell, see the
-# header of main.tf.
+# Copy to terraform.tfvars (git-ignored) and adjust. The parent values (Rancher
+# login, management VPC and subnets) are read from ../terraform.tfstate. Only
+# the passphrase (same as ../) and the node-driver key come from the shell,
+# see the header of main.tf.
 
 aws_account_id      = "123456789012"
 ami_id              = "ami-0123456789abcdef0" # same AMI as ../
