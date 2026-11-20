@@ -1,0 +1,27 @@
+# Downstream cluster `${cluster_name}`
+
+Rancher provisioned the cluster and reports it ready.
+
+| | |
+|---|---|
+| Rancher | ${rancher_cluster_url} |
+| Kubernetes (RKE2) | `${kubernetes_version}` |
+| Region | `${region}` |
+| Node egress IP | `${nat_public_ip}` |
+
+## Node pools
+
+| Pool | Role | Nodes |
+|---|---|---|
+%{ for name, p in pools ~}
+| `${name}` | ${p.role} | ${p.quantity} |
+%{ endfor ~}
+
+## Access
+
+Open the cluster in Rancher and use **Download KubeConfig**. The kubeconfig
+goes through Rancher's proxy and carries your own Rancher identity; this
+building block hands out no cluster credentials.
+
+Ask the platform team for access: project and cluster permissions are granted
+in Rancher.

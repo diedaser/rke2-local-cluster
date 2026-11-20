@@ -9,6 +9,7 @@ building block runner.
 |---|---|---|
 | `rke2-cluster` | [`modules/rke2-cluster/buildingblock`](modules/rke2-cluster/buildingblock) | VPC (private + public subnets per AZ, NAT), security groups, internal NLB (6443/9345) + optional public NLB (6443/80/443), 1/3/5 servers + optional agents on EC2, RKE2 via cloud-init, OpenTofu-generated cluster PKI, `/readyz` polling, admin kubeconfig in AWS Secrets Manager |
 | `rancher` | [`modules/rancher/buildingblock`](modules/rancher/buildingblock) | cert-manager, Rancher Helm release, admin bootstrap, telemetry opt-out, `/ping` polling, admin credentials in AWS Secrets Manager |
+| `downstream-cluster` | [`modules/downstream-cluster/buildingblock`](modules/downstream-cluster/buildingblock) | RKE2 workload cluster provisioned by Rancher with the EC2 node driver: own VPC (private nodes, NAT, no peering), one machine pool per role and AZ, login as the least-privilege Rancher user `meshstack-downstream` ([ADR-015](docs/adr/ADR-015-downstream-clusters.md)) |
 
 `rancher` depends on `rke2-cluster` and reads the cluster's kubeconfig from
 AWS Secrets Manager using the parent's `kubeconfig_secret_name` output. No secret is ever a
@@ -47,6 +48,7 @@ Delete in reverse order: `rancher` first, then `rke2-cluster`.
 modules/
   rke2-cluster/{buildingblock,backplane,meshstack}
   rancher/{buildingblock,backplane,meshstack}
+  downstream-cluster/{buildingblock,backplane,meshstack}
   _shared/{naming,node-pool-aws}        # internal child modules
 examples/standalone/                     # both BBs without meshStack (dev)
 docs/                                    # ADRs, GUI setup, operations, troubleshooting

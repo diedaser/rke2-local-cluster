@@ -23,11 +23,13 @@ the definition changes (CONTRIBUTING.md rule 13).
 | `aws_account_id` | Platform Tenant ID (the tenant's AWS account ID) | Variable | no |
 | `workspace_identifier`, `project_identifier`, `building_block_uuid` | meshStack identifiers | Variable | no |
 | `kubeconfig_secret_name` | Parent Building Block Output | Variable | no |
+| `backup_bucket_name` | Parent Building Block Output | Variable | no |
 | `api_server_url` | Parent Building Block Output | Variable | no |
 | `rancher_hostname`, `tls_source` | User Input | Variable | no |
 | `letsencrypt_email` | User Input, condition `tls_source == "letsEncrypt"` | Variable | no |
 | `tls_certificate_pem`, `tls_private_key_pem` | User Input, condition `tls_source == "secret"` | Variable | yes |
 | `rancher_version`, `cert_manager_version`, `rancher_chart_repository`, `replicas`, `ingress_class_name`, `kms_key_arn` | Static (optional) | Variable | no |
+| `rancher_backup_chart_version`, `rancher_backup_schedule`, `rancher_backup_retention` | Static (optional) | Variable | no |
 
 ## Outputs
 
@@ -38,4 +40,6 @@ None of them is secret (ADR-012).
 | `rancher_url` | Resource URL |
 | `admin_secret_name` | None |
 | `admin_secret_arn` | None |
+| `downstream_credentials_secret_name` | None |
+| `backup_encryption_secret_name` | None |
 | `summary` | Summary |

@@ -23,6 +23,7 @@ dirs=(
   modules/rke2-cluster/buildingblock
   modules/rke2-cluster/backplane
   modules/rancher/buildingblock
+  modules/downstream-cluster/buildingblock
   examples/standalone
 )
 

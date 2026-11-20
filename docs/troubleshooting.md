@@ -11,6 +11,8 @@
 | `rancher` run fails on `/ping` | [Rancher ping fails](#rancher-ping-fails) |
 | No etcd snapshots or Rancher backups in S3 | [Backups missing in S3](#backups-missing-in-s3) |
 | `rke2-cluster` delete fails with `BucketNotEmpty` | [Backups missing in S3](#backups-missing-in-s3) |
+| `downstream-cluster`: "Rancher login ... failed" | [Downstream cluster](#downstream-cluster) |
+| `downstream-cluster` run times out while the cluster provisions | [Downstream cluster](#downstream-cluster) |
 | `rancher` destroy hangs or fails on `/ping` | [Destroy blocked by the ping check](#destroy-blocked-by-the-ping-check) |
 | Let's Encrypt certificate not issued | [Let's Encrypt](#lets-encrypt) |
 | "secret with this name is already scheduled for deletion" | [Secret scheduled for deletion](#secret-scheduled-for-deletion) |
@@ -91,6 +93,17 @@ In meshStack, the runner has no `/etc/hosts` and no CLI flags. Whether a definit
 - **etcd upload errors:** `journalctl -u rke2-server | grep -i s3` on a server. `AccessDenied` with a customer managed key means the key policy does not allow the server role, or the backplane's `kms_key_arn` differs.
 - **Rancher backup errors:** `kubectl get backups.resources.cattle.io rancher-scheduled -o yaml` (status and conditions) and `kubectl -n cattle-resources-system logs deploy/rancher-backup`. With `kms_key_arn`, the `rancher` building block must use the same key as `rke2-cluster`.
 - **`BucketNotEmpty` on delete:** expected with `backup_force_destroy = false`. Keep what you need, empty the bucket, run the delete again ([operations](operations.md#deleting)).
+
+## Downstream cluster
+
+[ADR-015](adr/ADR-015-downstream-clusters.md).
+
+- **"Rancher login ... failed (HTTP 401)":** the password in `<prefix>-rancher-downstream` does not match the user `meshstack-downstream` in Rancher, typically between the two steps of a password rotation ([operations](operations.md#downstream-user-password-rotation)). HTTP `000` or a timeout: the runner cannot reach Rancher on 443.
+- **Run times out while provisioning (`Updated` condition never true):** in Rancher, **Cluster Management → the cluster → Machines** shows the per-machine state and the provisioning log.
+  - `UnauthorizedOperation` in the machine log: the node-driver IAM policy lacks an action (`backplane/node-driver.tf`); the message names it.
+  - Machines `Running` in EC2 but never registering: the nodes cannot reach Rancher on 443. Check the NAT gateway and, if Rancher's `ingress_allowed_cidrs` is restricted, that it contains the `nat_public_ip` output.
+  - `kubernetes_version` not offered by Rancher: pick one from the RKE2 version list in **Cluster Management → Create → Amazon EC2**.
+- **VPC delete fails with `DependencyViolation`:** instances or network interfaces of the cluster still exist. Wait until Rancher has removed them (EC2 console, tag `meshstack-building-block=<uuid>`), then run the delete again.
 
 ## Let's Encrypt
 

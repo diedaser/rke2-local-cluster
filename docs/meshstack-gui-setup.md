@@ -263,11 +263,11 @@ The steps are the same as in 1.8 and 1.9. For Run Approvals, **Version upgrade**
 
 ---
 
-## 3. Definition `downstream-cluster` (planned)
+## 3. Definition `downstream-cluster`
 
-> **Not implemented yet.** This section is the proposed contract from [ADR-015](adr/ADR-015-downstream-clusters.md) (status *Proposed*). There is no `modules/downstream-cluster` in the repo. Do not create this definition until the ADR is accepted and the module exists; names and types below may still change.
+Creates RKE2 workload clusters provisioned by the Rancher of a `rancher` building block ([ADR-015](adr/ADR-015-downstream-clusters.md)). Module: `modules/downstream-cluster/buildingblock`.
 
-Prerequisites (follow-up changes, see ADR-015):
+Prerequisites:
 
 - The backplane creates the node-driver IAM user `<iam_user_name>-node-driver` (path `/rke2-node-driver/`, implemented in `modules/rke2-cluster/backplane/node-driver.tf`). Re-run the backplane and read `tofu output -raw node_driver_access_key_id` and `tofu output -raw node_driver_secret_access_key`. They are Terraform **variables** of this definition, not environment variables, unlike the runner key.
 - The `rancher` building block outputs `downstream_credentials_secret_name` (implemented). Existing `rancher` instances must be upgraded to that version first.
@@ -311,16 +311,18 @@ Add **`Rancher Manager`** as the only dependency. Its outputs become available t
 | `workspace_identifier` | Workspace Identifier | String | Variable | no | |
 | `project_identifier` | Project Identifier | String | Variable | no | |
 | `building_block_uuid` | Building Block UUID | String | Variable | no | |
-| `rancher_url` | **Parent Building Block Output** | String | Variable | no | select parent output `rancher_url` |
 | `downstream_credentials_secret_name` | **Parent Building Block Output** | String | Variable | no | select parent output `downstream_credentials_secret_name` |
 | `cluster_name` | User Input | String | Variable | no | `^[a-z][a-z0-9-]{2,30}$`, unique in Rancher |
-| `kubernetes_version` | Static | String | Variable | no | pinned RKE2 version offered by the running Rancher (KDM), same minor as the management cluster |
+| `kubernetes_version` | Static | String | Variable | no | optional, default `v1.36.5+rke2r1` (Rancher v2.15.3 release notes). Must be offered by the running Rancher (KDM) |
+| `rancher_insecure` | Static | Boolean | Variable | no | optional, default `true` (Rancher-generated certificate). Set `false` once Rancher serves a publicly trusted certificate |
 | `control_plane_count` | User Input | Single Select | Variable | no | options `1`, `3`, `5`. Default `3` |
 | `worker_count` | User Input | Integer | Variable | no | default `2`, ≥ 1 |
-| `control_plane_instance_type`, `worker_instance_type` | User Input | Single Select | Variable | no | amd64 types, for example `m7i.large`, `m7i.xlarge` |
+| `control_plane_instance_type`, `worker_instance_type` | User Input | Single Select | Variable | no | amd64 types, for example `m7i.large`, `m7i.xlarge`. **optional** (module defaults `m7i.xlarge` / `m7i.large`) |
 | `ami_id` | Static | String | Variable | no | Ubuntu 24.04 amd64, as in 1.5 |
 | `vpc_cidr` | Static | String | Variable | no | default `10.110.0.0/16`. Not peered, so overlaps with other VPCs are harmless; must not overlap 10.42.0.0/16 or 10.43.0.0/16 (pod and service CIDRs) |
 | `kms_key_arn` | Static | String | Variable | no | optional, EBS encryption of the nodes. Must be the backplane's `kms_key_arn`, which grants the node-driver user the KMS actions |
+| `availability_zones` | Static | Code | Variable | no | optional, max. 4. Default: first 3 zones of the region. One machine pool per role and zone |
+| `root_volume_size_gb` | Static | Integer | Variable | no | optional, default `100` (40 to 16384), gp3 |
 
 ### 3.5 Outputs
 
