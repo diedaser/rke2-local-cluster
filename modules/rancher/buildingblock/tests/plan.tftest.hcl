@@ -291,3 +291,16 @@ run "downstream_access" {
     error_message = "Only the secret name may be output (ADR-012)."
   }
 }
+
+run "backup_encryption_immediate_delete" {
+  command = plan
+
+  variables {
+    backup_encryption_recovery_window_days = 0
+  }
+
+  assert {
+    condition     = aws_secretsmanager_secret.backup_encryption.recovery_window_in_days == 0
+    error_message = "backup_encryption_recovery_window_days must reach the secret."
+  }
+}

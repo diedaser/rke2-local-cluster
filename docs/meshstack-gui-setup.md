@@ -234,6 +234,7 @@ Add **`RKE2 Cluster (Rancher management)`** as a dependency. This guarantees the
 | `rancher_backup_chart_version` | Static | String | Variable | no | optional, default `110.0.3+up11.0.4` (Rancher 2.15 line). Must match the Rancher minor |
 | `rancher_backup_schedule` | Static | String | Variable | no | optional, default `0 3 * * *` (UTC), 5-field cron |
 | `rancher_backup_retention` | Static | Integer | Variable | no | optional, default `10`, ≥ 1 |
+| `backup_encryption_recovery_window_days` | Static | Integer | Variable | no | optional, default `30` (0 or 7 to 30). Keep 30 unless `rke2-cluster` deletes the backups with the cluster |
 | `rancher_chart_repository` | Static | String | Variable | no | optional, default rancher-stable `https://releases.rancher.com/server-charts/stable`; use the rancher-prime URL if licensed |
 | `replicas` | Static | Integer | Variable | no | optional, default `3`. Set to the server count (1 to 3) |
 | `ingress_class_name` | Static | String | Variable | no | optional, default `traefik` (RKE2's Traefik class); also used by the Let's Encrypt HTTP-01 solver |

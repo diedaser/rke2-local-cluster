@@ -29,7 +29,7 @@ the definition changes (CONTRIBUTING.md rule 13).
 | `letsencrypt_email` | User Input, condition `tls_source == "letsEncrypt"` | Variable | no |
 | `tls_certificate_pem`, `tls_private_key_pem` | User Input, condition `tls_source == "secret"` | Variable | yes |
 | `rancher_version`, `cert_manager_version`, `rancher_chart_repository`, `replicas`, `ingress_class_name`, `kms_key_arn` | Static (optional) | Variable | no |
-| `rancher_backup_chart_version`, `rancher_backup_schedule`, `rancher_backup_retention` | Static (optional) | Variable | no |
+| `rancher_backup_chart_version`, `rancher_backup_schedule`, `rancher_backup_retention`, `backup_encryption_recovery_window_days` | Static (optional) | Variable | no |
 
 ## Outputs
 

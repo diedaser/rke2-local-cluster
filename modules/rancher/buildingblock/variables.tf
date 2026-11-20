@@ -205,6 +205,17 @@ variable "rancher_backup_retention" {
   }
 }
 
+variable "backup_encryption_recovery_window_days" {
+  description = "Days the backup encryption secret stays recoverable after the building block is deleted. 0 deletes it immediately; use 0 only when the backups are deleted with the cluster (rke2-cluster backup_force_destroy = true), because the backups cannot be restored without it."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.backup_encryption_recovery_window_days == 0 || (var.backup_encryption_recovery_window_days >= 7 && var.backup_encryption_recovery_window_days <= 30)
+    error_message = "backup_encryption_recovery_window_days must be 0 or between 7 and 30 (AWS limits)."
+  }
+}
+
 variable "rancher_chart_repository" {
   description = "Helm repository of the Rancher chart: rancher-stable, or rancher-prime if licensed."
   type        = string

@@ -97,10 +97,10 @@ resource "aws_secretsmanager_secret" "backup_encryption" {
   description = "EncryptionConfiguration of the Rancher backups in s3://${var.backup_bucket_name}/${local.backup_s3_folder}/. Required to restore them (meshStack building block ${var.building_block_uuid})."
   kms_key_id  = var.kms_key_arn
 
-  # Kept for 30 days after the building block is deleted: the backups in
-  # the bucket may outlive it (backup_force_destroy = false) and are useless
-  # without this key.
-  recovery_window_in_days = 30
+  # Kept after the building block is deleted (default 30 days): the backups
+  # in the bucket may outlive it (backup_force_destroy = false) and are
+  # useless without this key. 0 where the backups die with the cluster.
+  recovery_window_in_days = var.backup_encryption_recovery_window_days
 }
 
 resource "aws_secretsmanager_secret_version" "backup_encryption" {

@@ -227,3 +227,11 @@ run "rejects_unpinned_backup_chart" {
   }
   expect_failures = [var.rancher_backup_chart_version]
 }
+
+run "rejects_short_recovery_window" {
+  command = plan
+  variables {
+    backup_encryption_recovery_window_days = 3
+  }
+  expect_failures = [var.backup_encryption_recovery_window_days]
+}

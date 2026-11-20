@@ -122,6 +122,11 @@ module "rancher" {
   backup_bucket_name     = module.rke2_cluster.backup_bucket_name
   rancher_hostname       = coalesce(var.rancher_hostname, module.rke2_cluster.lb_dns_name)
   replicas               = tonumber(var.server_count)
+
+  # The backups die with the bucket (backup_force_destroy above), so their key
+  # is worthless afterwards. 0 also lets a rebuild reuse the fixed secret name
+  # right away (the building block UUIDs here are constant).
+  backup_encryption_recovery_window_days = 0
 }
 
 output "api_server_url" {
