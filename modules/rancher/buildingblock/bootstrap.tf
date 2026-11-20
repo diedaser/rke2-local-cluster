@@ -15,4 +15,9 @@ resource "rancher2_setting" "telemetry_opt" {
 
   name  = "telemetry-opt"
   value = "out"
+
+  # The only link to Rancher is the rancher2.admin provider config, which
+  # OpenTofu does not record as a dependency. Without this, destroy may
+  # uninstall Rancher first and this delete then hangs on /ping.
+  depends_on = [rancher2_bootstrap.admin]
 }

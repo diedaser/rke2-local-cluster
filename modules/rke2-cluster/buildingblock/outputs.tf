@@ -6,6 +6,13 @@
 output "kubeconfig_secret_name" {
   description = "Name of the AWS Secrets Manager secret holding the admin kubeconfig. Consumed by the `rancher` building block."
   value       = aws_secretsmanager_secret.kubeconfig.name
+
+  # Ties every consumer to the whole running cluster (nodes, listeners,
+  # target groups, SG rules) via the readiness check. Without it, a combined
+  # root module (examples/standalone) destroys the nodes in parallel with
+  # the rancher resources, which then cannot reach Rancher. meshStack orders
+  # child before parent itself; this matters wherever both share one graph.
+  depends_on = [aws_secretsmanager_secret_version.kubeconfig]
 }
 
 output "kubeconfig_secret_arn" {
@@ -16,6 +23,8 @@ output "kubeconfig_secret_arn" {
 output "api_server_url" {
   description = "Kubernetes API URL through the client-facing load balancer."
   value       = local.api_server_url
+
+  depends_on = [aws_secretsmanager_secret_version.kubeconfig]
 }
 
 output "lb_dns_name" {

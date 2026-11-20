@@ -78,7 +78,7 @@ Compare `sha256sum server-ca.crt` on server 0 with the hash in the token. Fix th
 
 1. **Restore reachability (preferred).** Recreate the DNS record (or the `/etc/hosts` entry for standalone) and the allow-list entries, then destroy normally. The Helm uninstall and the `rancher2` providers need the same paths, so this is the only fix that keeps the destroy clean.
 2. **Skip the refresh.** `tofu destroy -refresh=false` uses the data source values in state. It gets past the ping check, but it still fails if a provider must contact Rancher or the API during the destroy.
-3. **Cluster is being deleted anyway.** `tofu state rm` the `module.rancher` Kubernetes/Helm/`rancher2` resources, then destroy the rest. Deleting the nodes removes the in-cluster objects. Do not `state rm` the Secrets Manager secrets: destroy them, or they stay behind in the account.
+3. **Cluster already destroyed while `module.rancher` still exists in state** (standalone only; it happened before the `depends_on` on the `kubeconfig_secret_name`/`api_server_url` outputs, which order every `rancher` resource before the nodes, and the `depends_on` of `rancher2_setting.telemetry_opt`). Also applies when the cluster is being deleted anyway. `tofu state rm` the `module.rancher` Kubernetes/Helm/`rancher2` resources, then destroy the rest. Deleting the nodes removes the in-cluster objects. Do not `state rm` the Secrets Manager secrets: destroy them, or they stay behind in the account.
 
 In meshStack, the runner has no `/etc/hosts` and no CLI flags. Whether a definition can run a destroy without refresh is not documented here; check the meshStack building block docs before relying on option 2. Option 1 always works.
 
