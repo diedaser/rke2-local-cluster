@@ -262,7 +262,84 @@ The steps are the same as in 1.8 and 1.9. For Run Approvals, **Version upgrade**
 
 ---
 
-## 3. Test the definitions
+## 3. Definition `downstream-cluster` (planned)
+
+> **Not implemented yet.** This section is the proposed contract from [ADR-015](adr/ADR-015-downstream-clusters.md) (status *Proposed*). There is no `modules/downstream-cluster` in the repo. Do not create this definition until the ADR is accepted and the module exists; names and types below may still change.
+
+Prerequisites (follow-up changes, see ADR-015):
+
+- The backplane creates the node-driver IAM user (`/rke2-node-driver/`). Re-run it and keep the outputs `node_driver_access_key_id` and `node_driver_secret_access_key` at hand.
+- The `rancher` building block outputs `downstream_token_secret_name`. Existing `rancher` instances must be upgraded to that version first.
+- No change to `rke2-cluster`: downstream nodes reach Rancher outbound on 443, and Rancher never connects to them (no VPC peering, ADR-015). If `ingress_allowed_cidrs` of `rke2-cluster` is restricted, add each downstream cluster's `nat_public_ip` output to it.
+
+Start a new wizard as in section 1. Only the differences are listed here.
+
+### 3.1 General
+
+| Field | Value |
+|---|---|
+| Definition name | `Downstream RKE2 Cluster` |
+| Description | `Creates an RKE2 workload cluster on AWS EC2, provisioned and managed by Rancher.` |
+| Type | **Tenant building block** |
+
+### 3.2 Implementation
+
+| Field | Value |
+|---|---|
+| Implementation type | OpenTofu |
+| Supported platforms | the same AWS platform |
+| Only apply once per tenant | **Off**: several downstream clusters per tenant and per `rancher` parent (meshStack API flag `only_apply_once_per_tenant`; verify the GUI label) |
+| Built-in HTTP backend | On |
+| Git repository / auth / known hosts | same as `rke2-cluster` |
+| Path in repository | `modules/downstream-cluster/buildingblock` |
+| Ref / commit | the same release tag |
+
+### 3.3 Dependencies
+
+Add **`Rancher Manager`** as the only dependency. Its outputs become available through the **Parent Building Block Output** source. Children must live in the same tenant as their parent: meshStack documents no cross-tenant dependencies (ADR-015), so downstream clusters are ordered in the tenant that holds Rancher.
+
+### 3.4 Inputs
+
+| Name | Source | Type | Provided as | Encrypted | Value / notes |
+|---|---|---|---|---|---|
+| `AWS_REGION` | Static | String | Environment | no | as in 1.5 |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Static | String | Environment | **yes** | runner key as in 1.5 (VPC, NAT, security group, Secrets Manager) |
+| `TF_VAR_state_encryption_passphrase` | Static | String | Environment | **yes** | a separate passphrase for this definition |
+| `node_driver_access_key_id`, `node_driver_secret_access_key` | Static | String | Variable | **yes** | backplane node-driver user; becomes the Rancher cloud credential |
+| `aws_account_id` | Platform Tenant ID | String | Variable | no | |
+| `workspace_identifier` | Workspace Identifier | String | Variable | no | |
+| `project_identifier` | Project Identifier | String | Variable | no | |
+| `building_block_uuid` | Building Block UUID | String | Variable | no | |
+| `rancher_url` | **Parent Building Block Output** | String | Variable | no | select parent output `rancher_url` |
+| `downstream_token_secret_name` | **Parent Building Block Output** | String | Variable | no | select parent output `downstream_token_secret_name` |
+| `cluster_name` | User Input | String | Variable | no | `^[a-z][a-z0-9-]{2,30}$`, unique in Rancher |
+| `kubernetes_version` | Static | String | Variable | no | pinned RKE2 version offered by the running Rancher (KDM), same minor as the management cluster |
+| `control_plane_count` | User Input | Single Select | Variable | no | options `1`, `3`, `5`. Default `3` |
+| `worker_count` | User Input | Integer | Variable | no | default `2`, ≥ 1 |
+| `control_plane_instance_type`, `worker_instance_type` | User Input | Single Select | Variable | no | amd64 types, for example `m7i.large`, `m7i.xlarge` |
+| `ami_id` | Static | String | Variable | no | Ubuntu 24.04 amd64, as in 1.5 |
+| `vpc_cidr` | Static | String | Variable | no | default `10.110.0.0/16`. Not peered, so overlaps with other VPCs are harmless; must not overlap 10.42.0.0/16 or 10.43.0.0/16 (pod and service CIDRs) |
+| `kms_key_arn` | Static | String | Variable | no | optional, EBS encryption of the nodes (the node-driver IAM user needs the KMS actions) |
+
+### 3.5 Outputs
+
+| Name | Type | Assignment type |
+|---|---|---|
+| `cluster_name` | String | None |
+| `rancher_cluster_id` | String | None |
+| `rancher_cluster_url` | String | Resource URL |
+| `nat_public_ip` | String | None |
+| `summary` | String | Summary |
+
+No kubeconfig output (ADR-012). Users download theirs from the Rancher UI, tied to their own Rancher identity.
+
+### 3.6 Create, publish, policies
+
+The steps are the same as in 1.8 and 1.9, with Run Approvals on **Version upgrade** and **Any input changes**: changing `kubernetes_version` or the pool counts makes Rancher roll or replace nodes. When deleting, delete every `downstream-cluster` before its `rancher` parent: meshStack does not enforce that order, and a downstream cluster whose Rancher is gone leaves its EC2 instances behind.
+
+---
+
+## 4. Test the definitions
 
 1. Pick a **test workspace and project** that has a tenant on the AWS platform.
 2. Open **Marketplace**, choose **RKE2 Cluster**, fill in the user inputs, and add the building block to the tenant.
@@ -271,7 +348,7 @@ The steps are the same as in 1.8 and 1.9. For Run Approvals, **Version upgrade**
 5. Add **Rancher Manager** to the same tenant. Then open `rancher_url` from the building block page.
 6. Delete both building blocks, child first, and confirm that the destroy runs clean up everything in AWS (VPC, NLBs, instances, EIP, secrets).
 
-## 4. Rolling out changes later
+## 5. Rolling out changes later
 
 1. Merge the change and tag a new release.
 2. Open the definition and click **Create Draft**.
@@ -279,7 +356,7 @@ The steps are the same as in 1.8 and 1.9. For Run Approvals, **Version upgrade**
 4. Click **Release**. New orders use the new version, and existing building blocks keep their version.
 5. To upgrade existing instances, go to **Admin Area → Marketplace → Building Blocks**, select them, and click **Upgrade**. With run approvals enabled, the resulting runs wait in **Waiting for Approval** with the plan shown. Review the plan and approve.
 
-## 5. Common errors
+## 6. Common errors
 
 | Symptom | Likely cause |
 |---|---|
