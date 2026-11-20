@@ -16,6 +16,12 @@ data "http" "api_readyz" {
     max_delay_ms = 10000
   }
 
+  # Everything on the path client -> NLB -> node must be listed here, directly
+  # or through module.server_init (routes, node rules). Consumers of this
+  # building block's outputs depend on this check (outputs.tf), so this list
+  # also decides what a combined destroy keeps alive until they are gone.
+  # Missing nodes_from_lb / lb_public_from_nat / lb_to_vpc let a standalone
+  # destroy cut Rancher off while module.rancher was still being destroyed.
   depends_on = [
     module.server_init,
     module.server_join,
@@ -23,6 +29,9 @@ data "http" "api_readyz" {
     aws_lb_target_group_attachment.this,
     aws_vpc_security_group_ingress_rule.lb_clients,
     aws_vpc_security_group_ingress_rule.lb_internal_from_nodes,
+    aws_vpc_security_group_ingress_rule.lb_public_from_nat,
+    aws_vpc_security_group_ingress_rule.nodes_from_lb,
+    aws_vpc_security_group_egress_rule.lb_to_vpc,
   ]
 
   lifecycle {
