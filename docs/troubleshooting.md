@@ -36,7 +36,7 @@ The precondition compares `aws sts get-caller-identity` with `aws_account_id` (P
 
 ## IAM permissions
 
-The runner's permissions are in `modules/rke2-cluster/backplane/main.tf`: two customer managed policies attached to the IAM user, `<iam_user_name>-infrastructure` (EC2/VPC/NLB, restricted to one region through `aws:RequestedRegion`) and `<iam_user_name>-identity` (backup bucket, bounded IAM principals, Secrets Manager, KMS). They are managed policies because inline user policies are capped at 2048 bytes in total.
+The runner's permissions are in `modules/rke2-cluster/backplane/main.tf`: two customer managed policies attached to the IAM user, `<iam_user_name>-infrastructure` (EC2/VPC/NLB, restricted to one region through `aws:RequestedRegion`) and `<iam_user_name>-identity` (backup bucket, bounded IAM principals, Secrets Manager, KMS). They are managed policies because inline user policies are capped at 2048 bytes in total. The Rancher EC2 node driver has its own IAM user and managed policy, `<iam_user_name>-node-driver` (`backplane/node-driver.tf`, ADR-015).
 
 - `AWS_REGION` on the definition differs from the backplane `region`: every call is denied. Align them.
 - First NLB in an account: the policy allows `iam:CreateServiceLinkedRole` for Elastic Load Balancing. If an SCP denies it, create the role once as admin: `aws iam create-service-linked-role --aws-service-name elasticloadbalancing.amazonaws.com`.

@@ -184,6 +184,15 @@ The backplane IAM user's access key is long-lived. Rotate it at least every 90 d
 
 Between step 1 and step 3 the old key no longer exists, so runs fail. Do it in a window without scheduled runs (drift detection included).
 
+### Node-driver access key ([ADR-015](adr/ADR-015-downstream-clusters.md))
+
+Rancher uses this key to create and delete downstream EC2 instances. Rotate it on the same schedule:
+
+1. `tofu apply -replace=aws_iam_access_key.node_driver` in `modules/rke2-cluster/backplane`.
+2. Create a new draft of the `downstream-cluster` definition with the new `node_driver_access_key_id` and `node_driver_secret_access_key`, release it, and upgrade the instances. Each run updates its `rancher2_cloud_credential`.
+
+Until an instance is upgraded, Rancher cannot scale, upgrade or delete that downstream cluster's nodes. Running workloads are unaffected.
+
 ## State encryption passphrase
 
 Never change `TF_VAR_state_encryption_passphrase` on a definition. Existing state then becomes unreadable ([ADR-004](adr/ADR-004-state-encryption.md)). To rotate it:

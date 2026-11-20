@@ -269,7 +269,7 @@ The steps are the same as in 1.8 and 1.9. For Run Approvals, **Version upgrade**
 
 Prerequisites (follow-up changes, see ADR-015):
 
-- The backplane creates the node-driver IAM user (`/rke2-node-driver/`). Re-run it and keep the outputs `node_driver_access_key_id` and `node_driver_secret_access_key` at hand.
+- The backplane creates the node-driver IAM user `<iam_user_name>-node-driver` (path `/rke2-node-driver/`, implemented in `modules/rke2-cluster/backplane/node-driver.tf`). Re-run the backplane and read `tofu output -raw node_driver_access_key_id` and `tofu output -raw node_driver_secret_access_key`. They are Terraform **variables** of this definition, not environment variables, unlike the runner key.
 - The `rancher` building block outputs `downstream_credentials_secret_name` (implemented). Existing `rancher` instances must be upgraded to that version first.
 - No change to `rke2-cluster`: downstream nodes reach Rancher outbound on 443, and Rancher never connects to them (no VPC peering, ADR-015). If `ingress_allowed_cidrs` of `rke2-cluster` is restricted, add each downstream cluster's `nat_public_ip` output to it.
 
@@ -320,7 +320,7 @@ Add **`Rancher Manager`** as the only dependency. Its outputs become available t
 | `control_plane_instance_type`, `worker_instance_type` | User Input | Single Select | Variable | no | amd64 types, for example `m7i.large`, `m7i.xlarge` |
 | `ami_id` | Static | String | Variable | no | Ubuntu 24.04 amd64, as in 1.5 |
 | `vpc_cidr` | Static | String | Variable | no | default `10.110.0.0/16`. Not peered, so overlaps with other VPCs are harmless; must not overlap 10.42.0.0/16 or 10.43.0.0/16 (pod and service CIDRs) |
-| `kms_key_arn` | Static | String | Variable | no | optional, EBS encryption of the nodes (the node-driver IAM user needs the KMS actions) |
+| `kms_key_arn` | Static | String | Variable | no | optional, EBS encryption of the nodes. Must be the backplane's `kms_key_arn`, which grants the node-driver user the KMS actions |
 
 ### 3.5 Outputs
 
