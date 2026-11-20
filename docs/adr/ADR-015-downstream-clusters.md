@@ -1,6 +1,6 @@
 # ADR-015: Downstream clusters provisioned by Rancher on EC2
 
-- **Status:** Accepted, 2026-11-20 (proposed the same day). Implemented in `modules/downstream-cluster`; the three points under "Verify in the first implementation" are still open until a real provision has run. Contract and click-path: [meshstack-gui-setup.md](../meshstack-gui-setup.md#3-definition-downstream-cluster).
+- **Status:** Accepted, 2026-11-20 (proposed the same day). Implemented in `modules/downstream-cluster` and verified end to end on 2026-11-20 (see "Verification"); scale and upgrade are not yet exercised. Contract and click-path: [meshstack-gui-setup.md](../meshstack-gui-setup.md#3-definition-downstream-cluster).
 
 ## Context
 
@@ -58,8 +58,24 @@ Option 1. A third building block, `downstream-cluster`, with the `rancher` build
 - The node-driver key is long-lived and needs the same rotation as the runner key.
 - Application teams cannot order downstream clusters in their own tenants with this design. That needs a different source for the Rancher URL and token (static inputs plus a cross-account secret) and per-account node-driver credentials; it is a separate ADR.
 
-## Verify in the first implementation
+## Verification (2026-11-20)
 
-1. A real provision with private-only nodes and no route from the management VPC succeeds (confirms the no-SSH code path).
-2. The node-driver IAM policy without tag conditions works as documented; tag-based conditions are added only after testing them.
-3. After `tofu destroy`, no `rancher-node-driver` instances or ENIs remain before the VPC delete starts. If they do, add an explicit wait.
+End-to-end run with `examples/standalone` + `examples/standalone/downstream` at `v0.0.6` (`b13c3c1`), account `773701287560`, `eu-central-1`: Rancher v2.15.2 on a 3-server RKE2 management cluster; downstream cluster `dev-apps-00000000` with 1 control-plane and 1 worker node (`m7i.large`), `kubernetes_version = v1.36.5+rke2r1`, logged in as `meshstack-downstream`.
+
+| Point | Result | Evidence |
+|---|---|---|
+| 1. Provisioning works although Rancher cannot connect to the nodes (no-SSH path) | **Confirmed** | Both machines reached `Running`, the cluster `Ready`/`Connected` (agent `rancher-agent:v2.15.2`), about 4 minutes after the machine configs were created. The nodes had no public IP, IMDSv2 `required`, and one security group whose only ingress rule is from itself. |
+| 2. Node-driver IAM policy (no tag conditions) and the `user-base` + `clusters-create` roles suffice | **Confirmed for create and delete** | Rancher launched and terminated both instances with the backplane node-driver key; no `UnauthorizedOperation`. `meshstack-downstream` (`u-8492n`) created the cluster and became its owner (creator cluster and project role bindings in the Rancher log). Scale and Kubernetes upgrade are not yet exercised. |
+| 3. Destroy leaves nothing behind | **Confirmed** | `tofu destroy` in `downstream/` finished without `DependencyViolation`: both instances `terminated`, no network interface or security group of the cluster left in the management VPC; in Rancher no provisioning cluster, management cluster, machine or cloud credential left. |
+| Isolation in the shared VPC | **Confirmed (configuration)** | The management internal NLB admits 6443 and 9345 only from the management node security group; no CIDR rule left. A connection test from a downstream pod was not run. |
+
+Found during the run and fixed in `b13c3c1`:
+
+- **rancher-webhook race.** The first downstream run started about two minutes after Rancher came up. Its machine configs were created at 13:11:56Z, the `rancher.cattle.io` MutatingWebhookConfiguration at 13:11:59Z, so they never got `field.cattle.io/creatorId`. Rancher's `authprovisioningv2` controller then skips them on purpose, `meshstack-downstream` never got read access, and `rancher2_machine_config_v2` timed out ("Timeout waiting for machine config V2 ID"). The retry seven minutes later worked. The `rancher` building block now waits for the webhook registration before it publishes the downstream login (`data.http.rancher_webhook`, ADR-007). The two un-annotated machine configs had no owner and stayed behind in `fleet-default`; they need manual deletion (`docs/troubleshooting.md`).
+- **Security group rule description.** AWS rejects apostrophes in rule descriptions; fixed in `aff092c` with a test over the allowed character set.
+
+Still open:
+
+- Scaling a pool and a Kubernetes upgrade of a downstream cluster, both as `meshstack-downstream`.
+- Tag-based conditions in the node-driver IAM policy, and dropping `ec2:CreateSecurityGroup` / `ec2:AuthorizeSecurityGroupIngress`, which the read-only security group should make unnecessary.
+- A connection test from a downstream pod to the management internal NLB (expected: timeout).
