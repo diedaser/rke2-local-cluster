@@ -10,6 +10,9 @@
 # meshStack does not need this: there the two modules are separate building
 # blocks with separate runs (ADR-001).
 #
+# A downstream cluster (ADR-015) is a separate root in downstream/: apply it
+# after this one and destroy it before this one.
+#
 # Backend: local by default; for a shared dev state, put an S3 backend into a
 # git-ignored backend_override.tf (ADR-005).
 
@@ -139,6 +142,11 @@ output "rancher_url" {
 output "backup_bucket_name" {
   description = "S3 bucket with etcd snapshots (etcd/) and Rancher backups (rancher/)."
   value       = module.rke2_cluster.backup_bucket_name
+}
+
+output "downstream_credentials_secret_name" {
+  description = "Rancher login of meshstack-downstream, for downstream/ (TF_VAR_downstream_credentials_secret_name)."
+  value       = module.rancher.downstream_credentials_secret_name
 }
 
 output "summary" {

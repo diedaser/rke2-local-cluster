@@ -104,6 +104,11 @@ In meshStack, the runner has no `/etc/hosts` and no CLI flags. Whether a definit
   - Machines `Running` in EC2 but never registering: the nodes cannot reach Rancher on 443. Check the NAT gateway and, if Rancher's `ingress_allowed_cidrs` is restricted, that it contains the `nat_public_ip` output.
   - `kubernetes_version` not offered by Rancher: pick one from the RKE2 version list in **Cluster Management → Create → Amazon EC2**.
 - **VPC delete fails with `DependencyViolation`:** instances or network interfaces of the cluster still exist. Wait until Rancher has removed them (EC2 console, tag `meshstack-building-block=<uuid>`), then run the delete again.
+- **Rancher (or its `rancher` building block) was deleted before the downstream cluster:** nobody owns the instances any more. Terminate them by tag, then destroy the downstream building block with `tofu destroy -refresh=false` after `tofu state rm` of the `rancher2_*` resources and `data.http.rancher_login` (the login can no longer succeed):
+  ```bash
+  aws ec2 describe-instances --filters Name=tag:meshstack-building-block,Values=<uuid> Name=instance-state-name,Values=pending,running,stopping,stopped --query "Reservations[].Instances[].InstanceId" --output text \
+    | xargs -r aws ec2 terminate-instances --instance-ids
+  ```
 
 ## Let's Encrypt
 

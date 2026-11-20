@@ -25,6 +25,7 @@ dirs=(
   modules/rancher/buildingblock
   modules/downstream-cluster/buildingblock
   examples/standalone
+  examples/standalone/downstream
 )
 
 have_tflint=1

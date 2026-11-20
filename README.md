@@ -50,7 +50,8 @@ modules/
   rancher/{buildingblock,backplane,meshstack}
   downstream-cluster/{buildingblock,backplane,meshstack}
   _shared/{naming,node-pool-aws}        # internal child modules
-examples/standalone/                     # both BBs without meshStack (dev)
+examples/standalone/                     # rke2-cluster + rancher without meshStack (dev)
+examples/standalone/downstream/          # one downstream-cluster on top, own state
 docs/                                    # ADRs, GUI setup, operations, troubleshooting
 scripts/                                 # validate-all.sh, fetch-kubeconfig.sh, fetch-rancher-admin.sh
 ```

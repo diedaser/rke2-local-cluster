@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (git-ignored) and adjust. Secrets (passphrase,
+# node-driver key) and the parent's secret name come from the shell, see the
+# header of main.tf.
+
+aws_account_id      = "123456789012"
+ami_id              = "ami-0123456789abcdef0" # same AMI as ../
+cluster_name        = "dev-apps"
+control_plane_count = "1"
+worker_count        = 1
