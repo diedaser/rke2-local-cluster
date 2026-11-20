@@ -50,7 +50,7 @@ resource "aws_security_group" "nodes" {
 
 resource "aws_vpc_security_group_ingress_rule" "nodes_self" {
   security_group_id            = aws_security_group.nodes.id
-  description                  = "All traffic between the cluster's nodes"
+  description                  = "All traffic between the nodes of this cluster"
   referenced_security_group_id = aws_security_group.nodes.id
   ip_protocol                  = "-1"
 }

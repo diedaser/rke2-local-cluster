@@ -169,6 +169,15 @@ run "default_cluster" {
   }
 
   assert {
+    # AWS accepts only a-zA-Z0-9. _-:/()#,@[]+=&;{}!$* in rule descriptions.
+    condition = alltrue([for d in [
+      aws_vpc_security_group_ingress_rule.nodes_self.description,
+      aws_vpc_security_group_egress_rule.nodes_all.description,
+    ] : can(regex("^[a-zA-Z0-9. _:/()#,@\\[\\]+=&;{}!$*-]{0,255}$", d))])
+    error_message = "Security group rule descriptions must use only characters AWS accepts."
+  }
+
+  assert {
     condition = (
       length(aws_vpc_security_group_ingress_rule.nodes_self.referenced_security_group_id) > 0 &&
       aws_vpc_security_group_ingress_rule.nodes_self.cidr_ipv4 == null
