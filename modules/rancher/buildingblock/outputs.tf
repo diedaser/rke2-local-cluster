@@ -17,6 +17,15 @@ output "admin_secret_arn" {
   value       = aws_secretsmanager_secret.admin.arn
 }
 
+output "downstream_credentials_secret_name" {
+  description = "Name of the Secrets Manager secret holding the Rancher login (url, username, password) of the downstream-cluster building block (ADR-015). Consumed by `downstream-cluster`."
+  value       = aws_secretsmanager_secret.downstream.name
+
+  # Hand out the name only once the credentials are stored and the user has
+  # its roles.
+  depends_on = [aws_secretsmanager_secret_version.downstream]
+}
+
 output "backup_encryption_secret_name" {
   description = "Name of the Secrets Manager secret holding the EncryptionConfiguration needed to restore the Rancher backups."
   value       = aws_secretsmanager_secret.backup_encryption.name
@@ -37,5 +46,7 @@ output "summary" {
     backup_schedule      = var.rancher_backup_schedule
     backup_retention     = var.rancher_backup_retention
     backup_secret_name   = aws_secretsmanager_secret.backup_encryption.name
+    downstream_secret    = aws_secretsmanager_secret.downstream.name
+    downstream_username  = rancher2_user.downstream.username
   })
 }

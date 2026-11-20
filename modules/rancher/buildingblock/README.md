@@ -55,8 +55,10 @@ terraform-docs -c .terraform-docs.yml modules/rancher/buildingblock
 | [aws_iam_user_policy.rancher_backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_user_policy) | resource |
 | [aws_secretsmanager_secret.admin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.backup_encryption](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
+| [aws_secretsmanager_secret.downstream](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret_version.admin](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.backup_encryption](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
+| [aws_secretsmanager_secret_version.downstream](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [helm_release.cert_manager](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [helm_release.rancher](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [helm_release.rancher_backup](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
@@ -68,10 +70,13 @@ terraform-docs -c .terraform-docs.yml modules/rancher/buildingblock
 | [kubernetes_secret_v1.backup_s3_credentials](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret_v1) | resource |
 | [kubernetes_secret_v1.tls_rancher_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret_v1) | resource |
 | [rancher2_bootstrap.admin](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/bootstrap) | resource |
+| [rancher2_global_role_binding.downstream](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/global_role_binding) | resource |
 | [rancher2_setting.telemetry_opt](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/setting) | resource |
+| [rancher2_user.downstream](https://registry.terraform.io/providers/rancher/rancher2/latest/docs/resources/user) | resource |
 | [random_bytes.backup_encryption_key](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/bytes) | resource |
 | [random_password.admin](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.bootstrap](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
+| [random_password.downstream](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.rancher_backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
@@ -113,6 +118,7 @@ terraform-docs -c .terraform-docs.yml modules/rancher/buildingblock
 | <a name="output_admin_secret_arn"></a> [admin\_secret\_arn](#output\_admin\_secret\_arn) | ARN of the Rancher admin credentials secret. |
 | <a name="output_admin_secret_name"></a> [admin\_secret\_name](#output\_admin\_secret\_name) | Name of the AWS Secrets Manager secret holding the Rancher admin URL, username, password and API token (JSON). |
 | <a name="output_backup_encryption_secret_name"></a> [backup\_encryption\_secret\_name](#output\_backup\_encryption\_secret\_name) | Name of the Secrets Manager secret holding the EncryptionConfiguration needed to restore the Rancher backups. |
+| <a name="output_downstream_credentials_secret_name"></a> [downstream\_credentials\_secret\_name](#output\_downstream\_credentials\_secret\_name) | Name of the Secrets Manager secret holding the Rancher login (url, username, password) of the downstream-cluster building block (ADR-015). Consumed by `downstream-cluster`. |
 | <a name="output_rancher_url"></a> [rancher\_url](#output\_rancher\_url) | URL of the Rancher UI. |
 | <a name="output_summary"></a> [summary](#output\_summary) | Markdown summary shown in meshStack after apply. |
 <!-- END_TF_DOCS -->

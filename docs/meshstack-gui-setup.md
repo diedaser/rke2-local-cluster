@@ -253,6 +253,7 @@ The conditions on `letsencrypt_email` and the two PEM inputs hide the fields unl
 | `rancher_url` | String | Resource URL |
 | `admin_secret_name` | String | None |
 | `admin_secret_arn` | String | None |
+| `downstream_credentials_secret_name` | String | None |
 | `backup_encryption_secret_name` | String | None |
 | `summary` | String | Summary |
 
@@ -269,7 +270,7 @@ The steps are the same as in 1.8 and 1.9. For Run Approvals, **Version upgrade**
 Prerequisites (follow-up changes, see ADR-015):
 
 - The backplane creates the node-driver IAM user (`/rke2-node-driver/`). Re-run it and keep the outputs `node_driver_access_key_id` and `node_driver_secret_access_key` at hand.
-- The `rancher` building block outputs `downstream_token_secret_name`. Existing `rancher` instances must be upgraded to that version first.
+- The `rancher` building block outputs `downstream_credentials_secret_name` (implemented). Existing `rancher` instances must be upgraded to that version first.
 - No change to `rke2-cluster`: downstream nodes reach Rancher outbound on 443, and Rancher never connects to them (no VPC peering, ADR-015). If `ingress_allowed_cidrs` of `rke2-cluster` is restricted, add each downstream cluster's `nat_public_ip` output to it.
 
 Start a new wizard as in section 1. Only the differences are listed here.
@@ -311,7 +312,7 @@ Add **`Rancher Manager`** as the only dependency. Its outputs become available t
 | `project_identifier` | Project Identifier | String | Variable | no | |
 | `building_block_uuid` | Building Block UUID | String | Variable | no | |
 | `rancher_url` | **Parent Building Block Output** | String | Variable | no | select parent output `rancher_url` |
-| `downstream_token_secret_name` | **Parent Building Block Output** | String | Variable | no | select parent output `downstream_token_secret_name` |
+| `downstream_credentials_secret_name` | **Parent Building Block Output** | String | Variable | no | select parent output `downstream_credentials_secret_name` |
 | `cluster_name` | User Input | String | Variable | no | `^[a-z][a-z0-9-]{2,30}$`, unique in Rancher |
 | `kubernetes_version` | Static | String | Variable | no | pinned RKE2 version offered by the running Rancher (KDM), same minor as the management cluster |
 | `control_plane_count` | User Input | Single Select | Variable | no | options `1`, `3`, `5`. Default `3` |

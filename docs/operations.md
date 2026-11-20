@@ -139,6 +139,15 @@ Shortcut for a meshStack rebuild: order `rke2-cluster` + `rancher` again, then r
 
 `tofu apply -replace=aws_iam_access_key.rancher_backup` in the `rancher` building block (or the equivalent meshStack run). The Kubernetes secret is updated in the same run; the operator picks it up for the next backup.
 
+## Downstream user password rotation
+
+The `rancher` building block creates the Rancher user `meshstack-downstream` (global roles `user-base`, `clusters-create`) for the downstream-cluster building block and stores its login in `<prefix>-rancher-downstream` ([ADR-015](adr/ADR-015-downstream-clusters.md)). Never replace or delete the user while downstream clusters exist: they are owned by its user ID.
+
+1. `tofu apply -replace=random_password.downstream` in the `rancher` building block (or the equivalent meshStack run). The secret gets the new password; the Rancher user keeps the old one, because its password is ignored after creation.
+2. As admin, set the same password on the user in Rancher (**Users & Authentication → Users → meshstack-downstream → Edit**), reading it from the secret: `aws secretsmanager get-secret-value --secret-id <prefix>-rancher-downstream --query SecretString --output text | jq -r .password`.
+
+Between step 1 and step 2, downstream-cluster runs fail to log in. Do both in one window.
+
 ## Admin certificate renewal
 
 The admin client certificate is valid for `admin_cert_validity_hours` (default one year). Any run within the last 30 days (`early_renewal_hours = min(720, validity / 4)`) issues a new certificate. The kubeconfig changes and is written as a new version of the same Secrets Manager secret; name and ARN stay the same.
@@ -185,7 +194,7 @@ Never change `TF_VAR_state_encryption_passphrase` on a definition. Existing stat
 
 ## Deleting
 
-1. Delete the `rancher` building block first. This uninstalls the Helm releases, deletes the rancher-backup IAM user and the admin secret (immediately), and schedules the backup encryption secret for deletion in 30 days. Restore it with `aws secretsmanager restore-secret` if the backups are still needed. Rancher's uninstall leaves CRDs and some namespaces behind; this is irrelevant if the cluster is deleted next.
+1. Delete every `downstream-cluster` building block first (meshStack does not enforce the order), then the `rancher` building block. This uninstalls the Helm releases, deletes the rancher-backup IAM user and the admin secret (immediately), and schedules the backup encryption secret for deletion in 30 days. Restore it with `aws secretsmanager restore-secret` if the backups are still needed. Rancher's uninstall leaves CRDs and some namespaces behind; this is irrelevant if the cluster is deleted next.
 2. Delete the `rke2-cluster` building block. This destroys servers, agents, root volumes, both NLBs, the NAT gateway and its EIP, the VPC with subnets, route tables and security groups, the placement group, the server IAM role and instance profile, and the kubeconfig secret in Secrets Manager.
    - The backup bucket is deleted only with `backup_force_destroy = true`. With the default `false`, the run fails on the non-empty bucket on purpose: keep a copy of what you need, then `aws s3 rm s3://<backup_bucket_name> --recursive` and run the delete again.
 3. Check that nothing tagged `meshstack-building-block=<uuid>` remains in the account and region (Resource Groups → Tag Editor).

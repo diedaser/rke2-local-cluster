@@ -258,3 +258,36 @@ run "backup_retention_override" {
     error_message = "Schedule and retention inputs must reach the Backup resource."
   }
 }
+
+run "downstream_access" {
+  command = apply
+
+  assert {
+    condition     = rancher2_user.downstream.username == "meshstack-downstream" && rancher2_user.downstream.enabled
+    error_message = "The downstream-cluster building block needs its own enabled Rancher user."
+  }
+
+  assert {
+    condition     = toset([for b in rancher2_global_role_binding.downstream : b.global_role_id]) == toset(["user-base", "clusters-create"])
+    error_message = "The downstream user must get exactly user-base and clusters-create, never admin or the Standard User role."
+  }
+
+  assert {
+    condition     = alltrue([for b in rancher2_global_role_binding.downstream : b.user_id == rancher2_user.downstream.id])
+    error_message = "Both role bindings must target the downstream user."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_secretsmanager_secret_version.downstream.secret_string).url == "https://rancher.example.com" &&
+      jsondecode(aws_secretsmanager_secret_version.downstream.secret_string).username == "meshstack-downstream" &&
+      jsondecode(aws_secretsmanager_secret_version.downstream.secret_string).password == random_password.downstream.result
+    )
+    error_message = "The downstream secret must carry url, username and the user's password."
+  }
+
+  assert {
+    condition     = output.downstream_credentials_secret_name == aws_secretsmanager_secret.downstream.name
+    error_message = "Only the secret name may be output (ADR-012)."
+  }
+}

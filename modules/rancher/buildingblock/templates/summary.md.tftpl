@@ -16,6 +16,12 @@ Encrypted Rancher backups (`rancher-resource-set-full`) go to
 ${backup_retention} are kept. The encryption config needed for a restore is in
 Secrets Manager: `${backup_secret_name}`.
 
+## Downstream clusters
+
+The **Downstream RKE2 Cluster** building block logs in to Rancher as
+`${downstream_username}` (global roles `user-base` and `clusters-create` only).
+Its credentials are in Secrets Manager: `${downstream_secret}`.
+
 ## Admin access
 
 The admin credentials (username `admin`, password, API token) are stored in
